@@ -1,0 +1,33 @@
+name: dl4rl
+channels:
+  - defaults
+  - conda-forge
+  - pytorch
+dependencies:
+  - openblas
+  - python=3.8.10
+  - pandas
+  - numpy
+  - scipy
+  - tensorflow=2.14.0
+  - scikit-learn
+  - matplotlib
+  - plotnine
+  - tqdm=4.59.0
+  - docopt=0.6.2
+  - jupyterlab
+  - seaborn
+  - pytables
+  - pip=21.1.2
+  - plotly
+  - python-kaleido
+  - pip:
+      - mat73
+      - sentencepiece
+      - torchvision      
+      - mne
+      - jupyter_contrib_nbextensions
+      - biosppy
+      - sacrebleu
+      - nltk
+      - timeout_decorator
