@@ -16,7 +16,7 @@ dependencies:
   - tqdm=4.59.0
   - docopt=0.6.2
   - jupyterlab
-  - seaborn
+  - seaborn=0.13.2
   - pytables
   - pip=21.1.2
   - plotly
@@ -24,6 +24,7 @@ dependencies:
   - pip:
       - mat73
       - sentencepiece
+      - statannotations==0.5.0
       - torchvision      
       - mne
       - jupyter_contrib_nbextensions
