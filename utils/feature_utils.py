@@ -1,9 +1,17 @@
 import numpy as np
 import pandas as pd
+from tensorflow import keras
 from tensorflow.keras.layers import Concatenate
-from tensorflow.keras.utils import one_hot
+from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import StandardScaler
 
+
+def get_labels(data, parameters):
+    name_to_labels = {}
+    for l in parameters:
+      name_to_labels[l] = data.groupby('agentid')[l].agg(['mean']).to_numpy()
+
+    return name_to_labels
 
 # Recovery helper functions
 def recover_parameter(prediction, scaler):
@@ -29,8 +37,6 @@ def get_recovered_parameters(name_to_scaler, name_to_true_parms, prediction):
 
 
 def normalize_train_labels(name_to_labels: dict):
-  from sklearn.preprocessing import StandardScaler
-
   names = list(name_to_labels.keys())
   names.sort()
 
@@ -62,6 +68,6 @@ def get_block_features(data):
   reward = data['rewards'].to_numpy().astype(np.float64).reshape((n_agent, n_block, n_trial))
 
   n_action =  len(data['actions'].unique())
-  action_onehot = one_hot(action, n_action)
+  action_onehot = to_categorical(action, n_action)
 
   return Concatenate(axis=3)([reward[:, :, :, np.newaxis], action_onehot]) #stimuli_onehot

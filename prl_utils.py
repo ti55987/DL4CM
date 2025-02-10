@@ -105,13 +105,6 @@ def get_label_names_by_mode(mode):
     else:
       return ['alpha', 'beta', 'neg_alpha', 'stickiness']
 
-def get_labels(data, mode=Mode.PRL2):
-    name_to_labels = {}
-    for l in get_label_names_by_mode(mode):
-      name_to_labels[l] = data.groupby('agentid')[l].agg(['mean']).to_numpy()
-
-    return name_to_labels
-
 def get_columns_by_label(label: str):
   if label == 'beta':
     return 'TrueBeta', 'MAPBeta'
