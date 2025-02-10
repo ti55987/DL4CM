@@ -112,46 +112,6 @@ def get_labels(data, mode=Mode.PRL2):
 
     return name_to_labels
 
-
-def normalize_train_labels(name_to_labels: dict):
-  from sklearn.preprocessing import StandardScaler
-  
-  names = list(name_to_labels.keys())
-  names.sort()
-
-  normalized_labels = []
-  name_to_scaler = {}
-  for name in names:
-    scaler = StandardScaler()
-    normalized_labels.append(scaler.fit_transform(name_to_labels[name]))
-    name_to_scaler[name] = scaler
-  
-  return np.concatenate(normalized_labels, axis=-1), name_to_scaler
-  
-def normalize_val_labels(name_to_labels: dict, name_to_scaler: dict):
-  names = list(name_to_labels.keys())
-  names.sort()
-
-  normalized_labels = []
-  for name in names:
-    scaler = name_to_scaler[name]
-    normalized_labels.append(scaler.transform(name_to_labels[name]))
-  
-  return np.concatenate(normalized_labels, axis=-1)
-  
-def validate_features(train_agent, train_features, test_agent, test_features, num_trials=200):
-  count = 0
-  ct = train_features.numpy().reshape(train_agent, num_trials*3)
-  cv = test_features.numpy().reshape(test_agent, num_trials*3) #val_features.numpy().reshape(N_VAL_AGENT, 200*3)
-
-  for v in cv:
-    is_in_list = np.any(np.all(v == ct, axis=1))
-    if is_in_list:
-      print(v)
-      count+=1
-  print(count)
-
-
 def get_columns_by_label(label: str):
   if label == 'beta':
     return 'TrueBeta', 'MAPBeta'
@@ -218,28 +178,6 @@ def get_map_sum_by_label(MAP: dict, label :str):
   return np.sum((MAP[true_label]-MAP[map_label])**2)/len(MAP[true_label])
 
 # ==================================
-# Recovery helper functions
-def recover_parameter(prediction, scaler):
-  estimated = prediction.reshape(prediction.shape[0], 1)
-  return scaler.inverse_transform(estimated)[:, 0]
-
-def get_recovered_parameters(name_to_scaler, name_to_true_parms, prediction):
-  from collections import defaultdict
-
-  sorted_label_names = list(name_to_true_parms.keys())
-  sorted_label_names.sort()
-  param_all_test = defaultdict(list)
-  idx = 0
-  for l in sorted_label_names:
-    k = f'true_{l}'
-    param_all_test[k] = name_to_true_parms[l][:, 0]
-
-    k = f'dl_{l}'
-    param_all_test[k] = recover_parameter(prediction[:, idx], name_to_scaler[l])
-    idx += 1
-
-  return pd.DataFrame(param_all_test)
-
 def plot_recovery(param_all, label):
   from scipy.stats import spearmanr
 
@@ -258,20 +196,3 @@ def plot_recovery(param_all, label):
   + gg.annotate('label', x=annotated_xp, y=annotated_yp, label=f'R={r_value}, p={p_value}', size=9, color='#252525',
             label_size=0, fontstyle='italic')  
   ) 
-
-
-def read_hdf5(path):
-    data = {}
-    with h5py.File(path, 'r') as f: # open file
-      k = f['df']['block0_items'][()]
-      values = f['df']['block0_values'][()]
-      for idx in range(len(k)):
-        cleaned_key = str(k[idx]).replace("b'", '').rstrip("'")
-        data[cleaned_key] = values[:, idx]
-
-      k = f['df']['block1_items'][()]
-      values = f['df']['block1_values'][()]
-      for idx in range(len(k)):
-        cleaned_key = str(k[idx]).replace("b'", '').rstrip("'")
-        data[cleaned_key] = values[:, idx]
-    return pd.DataFrame(data)
