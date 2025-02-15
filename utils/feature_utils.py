@@ -13,6 +13,24 @@ def get_labels(data, parameters):
 
     return name_to_labels
 
+
+def get_condition_aware_labels(data, shared_parameters, conditioned_parameters):  
+  name_to_labels = get_labels(data, shared_parameters)
+
+  grouped = data.groupby(['agentid', 'condition'])    
+  # Extract unique values for each parameter in the list
+  unique_values = grouped.apply(lambda x: pd.Series({
+      param: x[param].unique()[0] for param in conditioned_parameters if len(x[param].unique()) == 1
+  })).reset_index()
+
+  num_conditions = data.condition.nunique()
+  for i in range(num_conditions):
+    cond_values = unique_values[unique_values.condition == i]
+    for p in conditioned_parameters:
+      name_to_labels[p+str(i)] = cond_values[p].to_numpy().reshape(-1, 1)
+  
+  return name_to_labels
+
 # Recovery helper functions
 def recover_parameter(prediction, scaler):
   estimated = prediction.reshape(prediction.shape[0], 1)
