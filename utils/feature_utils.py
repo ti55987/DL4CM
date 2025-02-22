@@ -4,7 +4,7 @@ from tensorflow import keras
 from tensorflow.keras.layers import Concatenate
 from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import StandardScaler
- from tensorflow import one_hot
+from tensorflow import one_hot
 
 def get_labels(data, parameters):
     name_to_labels = {}
