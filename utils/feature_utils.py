@@ -4,7 +4,7 @@ from tensorflow import keras
 from tensorflow.keras.layers import Concatenate
 from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import StandardScaler
-
+ from tensorflow import one_hot
 
 def get_labels(data, parameters):
     name_to_labels = {}
@@ -89,3 +89,31 @@ def get_block_features(data):
   action_onehot = to_categorical(action, n_action)
 
   return Concatenate(axis=3)([reward[:, :, :, np.newaxis], action_onehot]) #stimuli_onehot
+
+
+def extract_features(data, input_list):
+  n_agent = len(data['agentid'].unique())
+  n_trial = len(data['trials'].unique())
+  n_block = len(data['block_no'].unique())
+  features = []
+  for key in input_list:
+    f = data[key].to_numpy().astype(np.int64).reshape((n_agent, n_block, n_trial))
+    features.append(f)
+  
+  return np.stack(features, axis=-1)
+
+def get_block_onehot_features(data, input_list):
+  n_agent = len(data['agentid'].unique())
+  n_trial = len(data['trials'].unique())
+  n_block = len(data['block_no'].unique())
+  features = []
+  for key in input_list:
+    input = data[key].to_numpy()
+    unique_input = np.unique(input)
+
+    cat_map = { item:i for i, item in enumerate(unique_input)}
+    input_cat = [cat_map[s] for s in input]
+    input_cat = np.array(input_cat).astype(np.int32).reshape((n_agent, n_block, n_trial))
+    features.append(one_hot(input_cat, len(unique_input)))
+
+  return np.concatenate(features, axis=-1)
