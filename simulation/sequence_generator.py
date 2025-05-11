@@ -22,7 +22,7 @@ odir = os.path.join(os.sep.join(wdir.split(os.sep)[:-1]), "Experiment",
                     "Randomization")                                            # output directory
 
 # function definition
-def create_stim_sequence(reps, ns):
+def create_stim_sequence(reps, ns, show_plot=False):
     
     """
     This function creates a stimulus sequence with controlled delays.
@@ -38,8 +38,7 @@ def create_stim_sequence(reps, ns):
     # initialization
     seq       = np.tile(np.arange(1, ns+1), reps)                               # start with simple sequence, repeating the same stimulus order [reps] times
     beta      = 5                                                               # softmax parameter
-    criterion = False                                                           # criterion for "good" sequence (as indicated by output from Pearson’s chi-squared test)
-    fig       = plt.figure(figsize = (8,5))                                     # figure initialization                      
+    criterion = False                                                           # criterion for "good" sequence (as indicated by output from Pearson’s chi-squared test)                                   
 
     # repeat until criterion is met
     while not criterion:
@@ -121,16 +120,18 @@ def create_stim_sequence(reps, ns):
                                  f_exp = expected)
 
             # visualization
-            plt.clf()                                                           # clear current figure
-            plt.plot(distr, "o-")                                               # line plot
-            plt.xlabel("Delay")                                                 # x-axis label
-            plt.xticks(np.arange(0, len(distr)), np.arange(1, len(distr)+1))
-            plt.ylabel("Frequency")
-            plt.title("Delay distribution")
-            plt.pause(0.1)
-            
-            # plotting style
-            fig.tight_layout()
+            if show_plot:
+                fig       = plt.figure(figsize = (8,5))  
+                plt.clf()                                                           # clear current figure
+                plt.plot(distr, "o-")                                               # line plot
+                plt.xlabel("Delay")                                                 # x-axis label
+                plt.xticks(np.arange(0, len(distr)), np.arange(1, len(distr)+1))
+                plt.ylabel("Frequency")
+                plt.title("Delay distribution")
+                plt.pause(0.1)
+                
+                # plotting style
+                fig.tight_layout()
 
             # check criterion
             criterion = p > 0.05 and ((np.max(distr) - np.min(distr)) < 2)
@@ -138,7 +139,7 @@ def create_stim_sequence(reps, ns):
         else:
             criterion = False
 
-    return seq
+    return np.array(seq)-1
 
 # # function application
 # for i in range(1,5):
