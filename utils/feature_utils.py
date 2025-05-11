@@ -108,7 +108,6 @@ def extract_features_blockless(data, input_list, onehot=False):
   for b in range(n_block):
     num_trials_per_agent += one_agent[one_agent.block_no == b].trials.nunique()
 
-
   encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')  # sparse=False for numpy array
 
   n_agent = len(agentids)
