@@ -23,11 +23,14 @@ def get_last_correct_trial(df):
     
     return last_correct_trial
 
-def simulate_agent(a, phi_dist, pval, num_blocks, num_stimuli_list, min_switches, iter_per_stimuli, num_actions, all_seq):
+def simulate_agent(a, pval, num_blocks, num_stimuli_list, min_switches, iter_per_stimuli, num_actions, all_seq, stickiness_dist=None, phi_dist=None):
     rand_beta = random.uniform(0.2, 0.8)
     rand_alpha = random.uniform(0.2, 0.8)
-    rand_phi = phi_dist[a]
-    agent = PRL(beta=rand_beta*20, pval=pval, id=a, phi=rand_phi)
+    rand_phi = phi_dist[a] if phi_dist is not None else 0
+    rand_stickiness = stickiness_dist[a] if stickiness_dist is not None else 0
+   
+    
+    agent = PRL(beta=rand_beta*20, pval=pval, id=a, phi=rand_phi, stickiness=rand_stickiness)
 
     half_block_no = int(num_blocks / 2)
     conditions = [0] * half_block_no + [1] * half_block_no
