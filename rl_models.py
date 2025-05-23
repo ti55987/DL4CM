@@ -10,6 +10,7 @@ class PRL:
         pval,
         id,
         phi=0,
+        stickiness=0.0,
     ):
         self.alpha = 0
         self.beta = beta  # softmax temperature
@@ -18,6 +19,7 @@ class PRL:
         self.id = id
         self.__Q = {}
         self.mapping = {}
+        self.stickiness = stickiness
 
     def init_model(self, alpha, stimuli, actions, mapping):
         self.alpha = alpha
@@ -44,6 +46,7 @@ class PRL:
             'alpha': [self.alpha]*num_trials,
             'beta': [self.beta]*num_trials,
             'phi': [self.phi]*num_trials,
+            'stickiness': [self.stickiness]*num_trials,
             'rpe_history': [],
             'unchosen_rpe_history': [],
         }
@@ -55,9 +58,10 @@ class PRL:
         # the number of correct trials required for the correct action to switch
         currLength = min_switch+random.randint(0, 5)
         currCum = 0 # initialize cumulative reward
+        previous_action = -1
         for i in range(num_trials):
             s = stimuli[i]
-            ac, r = self.select_action(s, correct_mapping[s])
+            ac, r = self.select_action(s, correct_mapping[s], previous_action)
             rpe, rpe_unchosen = self.update_values(s, ac, r)
 
             data['stimuli'].append(s)
@@ -67,7 +71,7 @@ class PRL:
             data['rewards'].append(r)
             data['correct_actions'].append(correct_mapping[s])
             data['iscorrectaction'].append(int(ac == correct_mapping[s]))
-
+            previous_action = ac
             currCum = currCum+r  # update cumulative reward
             # check for the counter of the trials required to switch correct actions
             if (r==1) and (currCum>=currLength):
@@ -79,8 +83,8 @@ class PRL:
 
         return pd.DataFrame(data)
 
-    def select_action(self, st, correct_action):
-        pi = self.get_policy(st)
+    def select_action(self, st, correct_action, previous_action=-1):
+        pi = self.get_policy(st, previous_action)
         ac = np.random.choice(
             self.num_actions, p=pi
         )  # select the action using the probab
@@ -120,7 +124,10 @@ class PRL:
 
         return rpe, rpe_unchosen
 
-    def get_policy(self, stimulus):
+    def get_policy(self, stimulus, previous_action=-1):
         Q_st = self.__Q[stimulus].copy()
+        if previous_action != -1:
+            Q_st[previous_action] = Q_st[previous_action] + self.stickiness        
+
         return action_softmax(Q_st, self.beta)
     
