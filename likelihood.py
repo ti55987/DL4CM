@@ -27,13 +27,17 @@ def prl2_neg_log_likelihood(data, parameters):
   return -llh
 
 # 2PRL-SA likelihood
-def prl2_sa_neg_log_likelihood(data, parameters):
+def rl_sa_neg_log_likelihood(data, parameters):
   if len(parameters) == 2:
     alpha0, beta = parameters
     alpha1 = alpha0
     phi=0
-  else:
-    alpha0, beta, phi = parameters
+  elif len(parameters) == 3:
+    alpha0, beta, sticky = parameters
+    alpha1 = alpha0
+    phi = 0
+  elif len(parameters) == 4:
+    alpha0, beta, sticky, phi = parameters
     alpha1 = alpha0
     #alpha0, alpha1, beta = parameters
 
@@ -50,8 +54,15 @@ def prl2_sa_neg_log_likelihood(data, parameters):
     num_stimuli = len(block_data.stimuli.unique())
     init_value = 1.0 / num_actions
     q_values = {i:  np.array([init_value]*num_actions) for i in range(num_stimuli)} # equal value first
+    prev_a = -1
     for s, a, r in zip(block_data.stimuli, block_data.actions, block_data.rewards):
-      llh += np.log(scipy.special.softmax(beta * q_values[s])[a])
+      Q = q_values.copy()
+      if prev_a != -1:
+        Q[s][prev_a] = Q[s][prev_a]+sticky
+
+      llh += np.log(scipy.special.softmax(beta * Q[s])[a])
+      prev_a = a      
+      #llh += np.log(scipy.special.softmax(beta * q_values[s])[a])
 
       # Forgetting - fix to case with different Q/W
       for st, action_to_prob in q_values.items():
@@ -98,7 +109,7 @@ def prl4_neg_log_likelihood(actions, rewards, parameters):
   return -llh
 
 # Function to process a single agent ID
-def process_agent(aid, data, metadata, bound_name, max_iterations=30, likelihood_func=prl2_sa_neg_log_likelihood):
+def process_agent(aid, data, metadata, bound_name='bounds', max_iterations=30, likelihood_func=rl_sa_neg_log_likelihood):
     """Process a single agent ID and return the optimization results."""
     try:
         print(f'Starting optimization for agent {aid}...')
