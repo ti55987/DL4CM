@@ -48,6 +48,7 @@ def simulate_agent(
         phi=params_dist["phi"],
         stickiness=params_dist["stickiness"],
         bias=params_dist["bias"],
+        eps=params_dist["eps"],
     )
 
     half_block_no = int(num_blocks / 2)
