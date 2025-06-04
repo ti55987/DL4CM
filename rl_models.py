@@ -85,6 +85,7 @@ class PRL:
         data["phi"] = self.phi
         data["stickiness"] = self.stickiness
         data["agentid"] = self.id
+        data["eps"] = self.eps
 
         return data
 
@@ -140,9 +141,9 @@ class PRL:
         pi_v = action_softmax(Q_st, self.beta)
 
         # Undirected noise
-        n_a = len(pi_v.keys())
+        n_a = len(pi_v)
         pi = [
-            (1.0 - self.eps) * pi_v[ac] + self.eps / n_a for ac in sorted(pi_v.keys())
+            (1.0 - self.eps) * pi_v[ac] + self.eps / n_a for ac in range(n_a)
         ]
 
         return pi

@@ -2,6 +2,7 @@ import random
 import numpy as np
 import pandas as pd
 from rl_models import PRL
+from mixture_models import WMMixture
 from utils.simulate_utils import generate_valid_mappings
 
 
@@ -79,12 +80,69 @@ def simulate_agent(
         data["delay_since_last_stimuli"] = (
             data["delay_since_last_stimuli"].fillna(0).astype(int)
         )
-        data["delay_since_last_correct"] = data["trials"] - pd.Series(
-            get_last_correct_trial(data)
+        # data["delay_since_last_correct"] = data["trials"] - pd.Series(
+        #     get_last_correct_trial(data)
+        # )
+        # data["delay_since_last_correct"] = (
+        #     data["delay_since_last_correct"].fillna(0).astype(int)
+        # )
+        data["block_no"] = [block_no] * num_trials
+        data["condition"] = [cond] * num_trials
+        data["set_size"] = [num_stimuli] * num_trials
+        agent_data_list.append(data)
+
+    return pd.concat(agent_data_list)
+
+
+def simulate_mixture_agent(
+    a,
+    num_blocks,
+    num_stimuli_list,
+    iter_per_stimuli,
+    num_actions,
+    all_seq,
+    using_rl=False,
+    params_dist={},
+):
+
+    agent = WMMixture(
+        id=a,
+        eta6_wm=params_dist["eta6_wm"],
+        r0=0 if using_rl else 1,
+        phi=params_dist["phi"],
+        stickiness=params_dist["stickiness"],
+        bias=params_dist["bias"],
+        eps=params_dist["eps"],
+    )
+
+    half_block_no = int(num_blocks / 2)
+    conditions = [0] * half_block_no + [1] * half_block_no
+    random.shuffle(conditions)
+    agent_data_list = []
+
+    for block_no in range(num_blocks):
+        cond = conditions[block_no]
+        num_stimuli = num_stimuli_list[cond]
+        mappings = generate_valid_mappings(num_stimuli, num_actions)
+        num_trials = num_stimuli * iter_per_stimuli
+
+        agent.init_model(
+            learning_rate=params_dist["alpha"],
+            stimuli=np.arange(num_stimuli),
+            actions=np.arange(num_actions),
+            mapping=mappings,
         )
-        data["delay_since_last_correct"] = (
-            data["delay_since_last_correct"].fillna(0).astype(int)
+        data = agent.simulate_block(
+            num_trials=num_trials, stimuli=all_seq[block_no], sz=num_stimuli
         )
+        # data['last_stimuli_trial'] = get_last_stimuli_trial(data)
+        data["delay_since_last_stimuli"] = data["trials"] - pd.Series(
+            get_last_stimuli_trial(data)
+        )
+        data["delay_since_last_stimuli"] = (
+            data["delay_since_last_stimuli"].fillna(0).astype(int)
+        )
+
         data["block_no"] = [block_no] * num_trials
         data["condition"] = [cond] * num_trials
         data["set_size"] = [num_stimuli] * num_trials

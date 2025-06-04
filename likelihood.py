@@ -31,38 +31,13 @@ def prl2_neg_log_likelihood(data, parameters):
 def rl2_sa_neg_log_likelihood(data, parameters):
     alpha0, beta = parameters
     param_dict = {"alpha": alpha0, "beta": beta, "stickiness": 0, "phi": 0, "bias": 1}
-    return sa_neg_log_likelihood(data, param_dict)
+    return sa_neg_log_likelihood_v2(data, param_dict)
 
 
 def wm3_sa_neg_log_likelihood(data, parameters):
     beta, sticky, phi = parameters
     param_dict = {"alpha": 1, "beta": beta, "stickiness": sticky, "phi": phi, "bias": 1}
-    return sa_neg_log_likelihood(data, param_dict)
-
-
-def wmb_sa_neg_log_likelihood(data, parameters):
-    beta, sticky, phi, bias = parameters
-    param_dict = {
-        "alpha": 1,
-        "beta": beta,
-        "stickiness": sticky,
-        "phi": phi,
-        "bias": bias,
-    }
-    return sa_neg_log_likelihood(data, param_dict)
-
-
-def wmn_sa_neg_log_likelihood(data, parameters):
-    beta, sticky, phi, eps = parameters
-    param_dict = {
-        "alpha": 1,
-        "beta": beta,
-        "stickiness": sticky,
-        "phi": phi,
-        "bias": 1,
-        "eps": eps,
-    }
-    return sa_neg_log_likelihood(data, param_dict)
+    return sa_neg_log_likelihood_v2(data, param_dict)
 
 
 def rl3_sa_neg_log_likelihood(data, parameters):
@@ -74,7 +49,7 @@ def rl3_sa_neg_log_likelihood(data, parameters):
         "phi": 0,
         "bias": 1,
     }
-    return sa_neg_log_likelihood(data, param_dict)
+    return sa_neg_log_likelihood_v2(data, param_dict)
 
 
 def rl4_sa_neg_log_likelihood(data, parameters):
@@ -86,27 +61,29 @@ def rl4_sa_neg_log_likelihood(data, parameters):
         "phi": phi,
         "bias": 1,
     }
-    return sa_neg_log_likelihood(data, param_dict)
+    return sa_neg_log_likelihood_v2(data, param_dict)
+
 
 # 2PRL-SA likelihood
 def sa_neg_log_likelihood_v2(data, param_dict):
     from rl_models import PRL
-    
+
+    alpha = param_dict["alpha"] if "alpha" in param_dict else 1
     alpha_cond = {
-        0: param_dict["alpha"],
-        1: param_dict["alpha"],
+        0: alpha,
+        1: alpha,
     }
 
     num_actions = len(data.actions.unique())
     num_stimuli = len(data.stimuli.unique())
     agent = PRL(
-        beta=param_dict["beta"] * BETA_MULTIPLIER,
+        beta=param_dict["beta"] * BETA_MULTIPLIER if "beta" in param_dict else 25,
         pval=1,
-        id=a,
+        id=0,
         phi=param_dict["phi"],
         stickiness=param_dict["stickiness"],
         bias=param_dict["bias"],
-        eps=param_dict["eps"],
+        eps=param_dict["eps"] if "eps" in param_dict else 0,
     )
     llh = 0
     for b in data.block_no.unique():
@@ -126,61 +103,42 @@ def sa_neg_log_likelihood_v2(data, param_dict):
 
     return -llh
 
-# 2PRL-SA likelihood
-def sa_neg_log_likelihood(data, param_dict):
-    alpha0, beta, sticky, phi, bias = (
-        param_dict["alpha"],
-        param_dict["beta"],
-        param_dict["stickiness"],
-        param_dict["phi"],
-        param_dict["bias"],
-    )
-    alpha1 = alpha0
-    beta = beta * BETA_MULTIPLIER
+
+def sa_mixture_neg_log_likelihood(data, param_dict):
+    from mixture_models import WMMixture
+
+    alpha = param_dict["alpha"] if "alpha" in param_dict else 1
     alpha_cond = {
-        0: [alpha0 * bias, alpha0],
-        1: [alpha1 * bias, alpha1],
+        0: alpha,
+        1: alpha,
     }
 
     num_actions = len(data.actions.unique())
+    num_stimuli = len(data.stimuli.unique())
+    agent = WMMixture(
+        eta6_wm=param_dict["eta6_wm"],
+        r0=param_dict["r0"],
+        id=0,
+        phi=param_dict["phi"],
+        stickiness=param_dict["stickiness"],
+        bias=param_dict["bias"],
+        eps=param_dict["eps"] if "eps" in param_dict else 0,
+    )
     llh = 0
     for b in data.block_no.unique():
         block_data = data[data.block_no == b]
         condition = block_data.condition.iloc[0]
-        alphas = alpha_cond[condition]
+        agent.init_model(
+            learning_rate=alpha_cond[condition],
+            stimuli=np.arange(num_stimuli),
+            actions=np.arange(num_actions),
+            mapping={},
+        )
+        llh += agent.neg_log_likelihood(
+            block_data.stimuli, block_data.actions, block_data.rewards, num_stimuli
+        )
 
-        num_stimuli = len(block_data.stimuli.unique())
-        init_value = 1.0 / num_actions
-        q_values = {
-            i: np.array([init_value] * num_actions) for i in range(num_stimuli)
-        }  # equal value first
-        prev_a = -1
-        for s, a, r in zip(block_data.stimuli, block_data.actions, block_data.rewards):
-            Q = q_values.copy()
-            if prev_a != -1:
-                Q[s][prev_a] = Q[s][prev_a] + sticky
-
-            llh += np.log(scipy.special.softmax(beta * Q[s])[a])
-            prev_a = a
-            # llh += np.log(scipy.special.softmax(beta * q_values[s])[a])
-
-            # Forgetting - fix to case with different Q/W
-            for st, action_to_prob in q_values.items():
-                for i in range(len(action_to_prob)):
-                    # same thing as WM = WM + forget (1/n - WM)
-                    q_values[st][i] = (1.0 - phi) * q_values[st][i] + phi * init_value
-
-            rpe = r - q_values[s][a]
-            alpha = alphas[r]
-            q_values[s][a] += alpha * rpe  # update q value
-            for x in list(np.arange(num_actions)):
-                if x == a:
-                    continue
-                # RPE for the unselected action
-                rpe_unchosen = (1 - r) - q_values[s][x]
-                q_values[s][x] += alpha * rpe_unchosen
-
-    return -llh
+    return llh
 
 
 def prl4_neg_log_likelihood(actions, rewards, parameters):
@@ -235,7 +193,7 @@ class UniformPrior:
             Log probability of uniform distribution
         """
         if self.lower <= x <= self.upper:
-            return self.log_prob
+            return np.clip(self.log_prob, self.min_log_prob, 0)
         return self.min_log_prob  # use large negative number instead of -inf
 
 
@@ -320,24 +278,32 @@ def process_agent(
     aid,
     data,
     metadata,
-    bound_name="bounds",
+    param_bounds_dict,
     max_iterations=30,
 ):
     """Process a single agent ID and return the optimization results."""
     likelihood_func = metadata["likelihood_func"]
+    # Get parameter names and bounds
+    param_names = sorted(list(param_bounds_dict.keys()))
+    bounds = [param_bounds_dict[param] for param in param_names]
+    sub_data = data[data.agentid == aid]
+
+    # Create a wrapper function that unpacks dictionary to list for the likelihood function
+    def func(params_list, *args):
+        # Convert params list back to dictionary for tracking/debugging
+        params_dict = {name: value for name, value in zip(param_names, params_list)}
+        params_dict["r0"] = metadata['r0'] if 'r0' in metadata else 0
+        return likelihood_func(sub_data, params_dict)
+
     try:
         print(f"Starting optimization for agent {aid}...")
-        sub_data = data[data.agentid == aid]
-        init_params = [random.uniform(l, h) for l, h in metadata[bound_name]]
 
-        # Define the function for this agent
-        func = lambda x, *args: likelihood_func(sub_data, x)
-
+        init_params = [random.uniform(l, h) for l, h in bounds]
         # Run optimization
         res = minimize(
             func,
             init_params,
-            bounds=metadata[bound_name],
+            bounds=bounds,
             method="L-BFGS-B",
             options={"maxiter": max_iterations},
         )
@@ -353,6 +319,7 @@ def process_agent_map(
     aid,
     data,
     metadata,
+    param_bounds_dict,
     max_iterations=30,
 ):
     """Process a single agent ID and return the MAP optimization results.
@@ -368,18 +335,30 @@ def process_agent_map(
     Returns:
         Tuple of (agent_id, optimized_parameters)
     """
-    likelihood_func = metadata["likelihood_func"]
+    # Get parameter names and bounds
+    param_names = sorted(list(param_bounds_dict.keys()))
+    bounds = [param_bounds_dict[param] for param in param_names]
+
+    # Create a wrapper function that unpacks dictionary to list for the likelihood function
+    def likelihood_func(d, params, *args):
+        f = metadata["likelihood_func"]
+        # Convert params list back to dictionary for tracking/debugging
+        params_dict = {name: value for name, value in zip(param_names, params)}
+        params_dict["r0"] = metadata['r0'] if 'r0' in metadata else 0
+        return f(d, params_dict)
+
+    # Define the uniform prior log probability function
+    def log_prior(params):
+        log_prob = 0.0
+        pf = metadata["prior_func"]
+        for name, value in zip(param_names, params):
+            log_prob += pf[name](value)
+        return log_prob
+
     try:
         print(f"Starting MAP optimization for agent {aid}...")
+        init_params = [random.uniform(l, h) for l, h in bounds]
         sub_data = data[data.agentid == aid]
-        init_params = [random.uniform(l, h) for l, h in metadata["bounds"]]
-
-        # Define the uniform prior log probability function
-        def log_prior(params):
-            log_prob = 0.0
-            for i, prior_func in enumerate(metadata["prior_func"]):
-                log_prob += prior_func(params[i])
-            return log_prob
 
         # Define the function for this agent (negative log posterior)
         def neg_log_posterior(x, *args):
@@ -390,7 +369,7 @@ def process_agent_map(
         res = minimize(
             neg_log_posterior,
             init_params,
-            bounds=metadata["bounds"],
+            bounds=bounds,
             method="L-BFGS-B",
             options={"maxiter": max_iterations},
         )
