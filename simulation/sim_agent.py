@@ -97,7 +97,7 @@ def simulate_agent(
 def simulate_mixture_agent(
     a,
     num_blocks,
-    num_stimuli_list,
+    conditions,
     iter_per_stimuli,
     num_actions,
     all_seq,
@@ -107,6 +107,7 @@ def simulate_mixture_agent(
 
     agent = WMMixture(
         id=a,
+        eta2_wm=params_dist["eta2_wm"] if "eta2_wm" in params_dist else 0,
         eta6_wm=params_dist["eta6_wm"],
         r0=0 if using_rl else 1,
         phi=params_dist["phi"],
@@ -115,14 +116,11 @@ def simulate_mixture_agent(
         eps=params_dist["eps"],
     )
 
-    half_block_no = int(num_blocks / 2)
-    conditions = [0] * half_block_no + [1] * half_block_no
-    random.shuffle(conditions)
     agent_data_list = []
 
     for block_no in range(num_blocks):
         cond = conditions[block_no]
-        num_stimuli = num_stimuli_list[cond]
+        num_stimuli = len(np.unique(all_seq[block_no]))
         mappings = generate_valid_mappings(num_stimuli, num_actions)
         num_trials = num_stimuli * iter_per_stimuli
 

@@ -114,8 +114,8 @@ def sa_mixture_neg_log_likelihood(data, param_dict):
     }
 
     num_actions = len(data.actions.unique())
-    num_stimuli = len(data.stimuli.unique())
     agent = WMMixture(
+        eta2_wm=param_dict["eta2_wm"] if "eta2_wm" in param_dict else 0,
         eta6_wm=param_dict["eta6_wm"],
         r0=param_dict["r0"],
         id=0,
@@ -127,6 +127,7 @@ def sa_mixture_neg_log_likelihood(data, param_dict):
     llh = 0
     for b in data.block_no.unique():
         block_data = data[data.block_no == b]
+        num_stimuli = block_data.stimuli.nunique()
         condition = block_data.condition.iloc[0]
         agent.init_model(
             learning_rate=alpha_cond[condition],

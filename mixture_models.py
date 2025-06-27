@@ -1,7 +1,5 @@
 from utils.simulate_utils import (
-    choose_different_array,
     action_softmax,
-    generate_shuffled_list,
 )
 import pandas as pd
 import numpy as np
@@ -9,7 +7,7 @@ import random
 
 class WMMixture:
     # subjective reward for the negative outcome, r0 = 0 reprensents an RL agenet.
-    def __init__(self, id, eta6_wm, r0, phi=0, stickiness=0.0, bias=1, eps=0.0):
+    def __init__(self, id, eta2_wm, eta6_wm, r0, phi=0, stickiness=0.0, bias=1, eps=0.0):
         self.id = id
         self.learning_rate = 0
         self.beta = 25  # softmax temperature
@@ -18,7 +16,7 @@ class WMMixture:
         self.phi = phi
         self.wm_bias = bias
         self.rl_bias = bias
-        self.eta2_wm = 0  # wm weight in policy calculation
+        self.eta2_wm = eta2_wm  # wm weight in policy calculation
         self.eta6_wm = eta6_wm  # wm weight in policy calculation
         self.subjective_reward = [r0, 1]
         self.__Q = {}
@@ -76,6 +74,7 @@ class WMMixture:
         data["stickiness"] = self.stickiness
         data["agentid"] = self.id
         data["eps"] = self.eps
+        data["eta2_wm"] = self.eta2_wm
 
         return data
     
@@ -136,7 +135,7 @@ class WMMixture:
         
         n_a = len(pi_rl)
         # Mixed WM and RL
-        eta_wm = self.eta2_wm if set_size == 2 else self.eta6_wm
+        eta_wm = self.eta6_wm if set_size == 6 else self.eta2_wm
         mixed_pi_rl = {
             ac: eta_wm * pi_wm[ac] + (1.0 - eta_wm) * pi_rl[ac] for ac in range(n_a)
         }

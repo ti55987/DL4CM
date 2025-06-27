@@ -5,9 +5,113 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Concatenate
 from tensorflow.keras.utils import to_categorical
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from tensorflow import one_hot
 
+class ParameterNormalizer:
+    def __init__(self, normalization_configs):
+        """
+        normalization_configs: dict defining how to normalize each parameter
+        {
+            'param_name': {
+                'method': 'standard', 'minmax', 'log_standard', or 'custom',
+                'range': (min, max),  # original range
+                'target_range': (min, max),  # desired range after normalization
+                'is_skewed': bool
+            }
+        }
+        """
+        self.configs = normalization_configs
+        self.scalers = {}
+        self.fitted = False
+    
+    def fit_transform(self, parameter_dict):
+        """Fit normalizers and transform parameters"""
+        normalized_params = {}
+        
+        for param_name, values in parameter_dict.items():
+            config = self.configs[param_name]
+            values = np.array(values).reshape(-1, 1)
+            
+            if config['method'] == 'standard':
+                scaler = StandardScaler()
+                normalized_values = scaler.fit_transform(values)
+                
+            elif config['method'] == 'minmax':
+                target_range = config.get('target_range', (0, 1))
+                scaler = MinMaxScaler(feature_range=target_range)
+                normalized_values = scaler.fit_transform(values)
+                
+            elif config['method'] == 'log_standard':
+                # For skewed data: log transform then standardize
+                epsilon = config.get('epsilon', 1e-8)
+                log_values = np.log(values + epsilon)
+                scaler = StandardScaler()
+                normalized_values = scaler.fit_transform(log_values)
+                
+            elif config['method'] == 'custom':
+                # Custom normalization function
+                norm_func = config['norm_func']
+                normalized_values = norm_func(values)
+                scaler = None
+            
+            else:
+                # No normalization
+                normalized_values = values
+                scaler = None
+            
+            self.scalers[param_name] = scaler
+            normalized_params[param_name] = normalized_values.flatten()
+        
+        self.fitted = True
+        return normalized_params
+    
+    def transform(self, parameter_dict):
+        """Transform using fitted normalizers"""
+        if not self.fitted:
+            raise ValueError("Must call fit_transform first")
+        
+        normalized_params = {}
+        for param_name, values in parameter_dict.items():
+            values = np.array(values).reshape(-1, 1)
+            config = self.configs[param_name]
+            scaler = self.scalers[param_name]
+            
+            if config['method'] == 'log_standard' and scaler:
+                epsilon = config.get('epsilon', 1e-8)
+                log_values = np.log(values + epsilon)
+                normalized_values = scaler.transform(log_values)
+            elif scaler:
+                normalized_values = scaler.transform(values)
+            else:
+                normalized_values = values
+                
+            normalized_params[param_name] = normalized_values.flatten()
+        
+        return normalized_params
+    
+    def inverse_transform(self, normalized_dict):
+        """Convert normalized predictions back to original scale"""
+        original_params = {}
+        
+        for param_name, values in normalized_dict.items():
+            values = np.array(values).reshape(-1, 1)
+            config = self.configs[param_name]
+            scaler = self.scalers[param_name]
+            
+            if config['method'] == 'log_standard' and scaler:
+                standardized_values = scaler.inverse_transform(values)
+                epsilon = config.get('epsilon', 1e-8)
+                original_values = np.exp(standardized_values) - epsilon
+            elif scaler:
+                original_values = scaler.inverse_transform(values)
+            else:
+                original_values = values
+                
+            original_params[param_name] = original_values.flatten()
+        
+        return original_params
+    
 def get_labels(data, parameters):
     name_to_labels = {}
     for l in parameters:
