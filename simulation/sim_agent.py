@@ -2,7 +2,7 @@ import random
 import numpy as np
 import pandas as pd
 from rl_models import PRL
-from mixture_models import WMMixture
+from mixture_models import create_mixture_model
 from utils.simulate_utils import generate_valid_mappings
 
 
@@ -66,6 +66,11 @@ def simulate_agent(
 
         agent.init_model(
             alpha=params_dist["alpha"],
+            neg_alpha=(
+                params_dist["neg_alpha"]
+                if "neg_alpha" in params_dist
+                else params_dist["alpha"]
+            ),
             stimuli=np.arange(num_stimuli),
             actions=np.arange(num_actions),
             mapping=mappings,
@@ -105,16 +110,7 @@ def simulate_mixture_agent(
     params_dist={},
 ):
 
-    agent = WMMixture(
-        id=a,
-        eta2_wm=params_dist["eta2_wm"] if "eta2_wm" in params_dist else 0,
-        eta6_wm=params_dist["eta6_wm"],
-        r0=0 if using_rl else 1,
-        phi=params_dist["phi"],
-        stickiness=params_dist["stickiness"],
-        bias=params_dist["bias"],
-        eps=params_dist["eps"],
-    )
+    agent = create_mixture_model(a, params_dist, using_rl)
 
     agent_data_list = []
 

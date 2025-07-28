@@ -30,8 +30,8 @@ class PRL:
         self.stickiness = stickiness
         self.eps = eps
 
-    def init_model(self, alpha, stimuli, actions, mapping):
-        self.alphas = [alpha * self.bias, alpha]
+    def init_model(self, alpha, neg_alpha, stimuli, actions, mapping):
+        self.alphas = [neg_alpha * self.bias, alpha]
         actions = set(actions)
         stimuli = set(stimuli)
         self.num_actions = len(actions)
@@ -142,8 +142,6 @@ class PRL:
 
         # Undirected noise
         n_a = len(pi_v)
-        pi = [
-            (1.0 - self.eps) * pi_v[ac] + self.eps / n_a for ac in range(n_a)
-        ]
+        pi = [(1.0 - self.eps) * pi_v[ac] + self.eps / n_a for ac in range(n_a)]
 
         return pi

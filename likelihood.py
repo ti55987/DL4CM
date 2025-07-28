@@ -105,7 +105,7 @@ def sa_neg_log_likelihood_v2(data, param_dict):
 
 
 def sa_mixture_neg_log_likelihood(data, param_dict):
-    from mixture_models import WMMixture
+    from mixture_models import create_mixture_model
 
     alpha = param_dict["alpha"] if "alpha" in param_dict else 1
     alpha_cond = {
@@ -114,16 +114,8 @@ def sa_mixture_neg_log_likelihood(data, param_dict):
     }
 
     num_actions = len(data.actions.unique())
-    agent = WMMixture(
-        eta2_wm=param_dict["eta2_wm"] if "eta2_wm" in param_dict else 0,
-        eta6_wm=param_dict["eta6_wm"],
-        r0=param_dict["r0"],
-        id=0,
-        phi=param_dict["phi"],
-        stickiness=param_dict["stickiness"],
-        bias=param_dict["bias"],
-        eps=param_dict["eps"] if "eps" in param_dict else 0,
-    )
+    agent = create_mixture_model(id=0, params_dist=param_dict, using_rl=False)
+    
     llh = 0
     for b in data.block_no.unique():
         block_data = data[data.block_no == b]

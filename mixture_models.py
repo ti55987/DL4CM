@@ -5,9 +5,21 @@ import pandas as pd
 import numpy as np
 import random
 
+def create_mixture_model(id, params_dist, using_rl=False):
+    return  WMMixture(
+        id=id,
+        eta2_wm=params_dist["eta2_wm"] if "eta2_wm" in params_dist else 0,
+        eta6_wm_p=params_dist["eta6_wm_p"],
+        r0=0 if using_rl else 1,
+        phi=params_dist["phi"],
+        stickiness=params_dist["stickiness"],
+        bias=params_dist["bias"],
+        eps=params_dist["eps"] if "eps" in params_dist else 0,
+    )
+
 class WMMixture:
     # subjective reward for the negative outcome, r0 = 0 reprensents an RL agenet.
-    def __init__(self, id, eta2_wm, eta6_wm, r0, phi=0, stickiness=0.0, bias=1, eps=0.0):
+    def __init__(self, id, eta2_wm, eta6_wm_p, r0, phi=0, stickiness=0.0, bias=1, eps=0.0):
         self.id = id
         self.learning_rate = 0
         self.beta = 25  # softmax temperature
@@ -17,7 +29,8 @@ class WMMixture:
         self.wm_bias = bias
         self.rl_bias = bias
         self.eta2_wm = eta2_wm  # wm weight in policy calculation
-        self.eta6_wm = eta6_wm  # wm weight in policy calculation
+        self.eta6_wm_p = eta6_wm_p  # wm weight in policy calculation
+        self.eta6_wm = eta6_wm_p*eta2_wm  # wm weight in policy calculation
         self.subjective_reward = [r0, 1]
         self.__Q = {}
         self.__W = {}
@@ -68,7 +81,7 @@ class WMMixture:
         data["alpha"] = self.learning_rate
         data["wm_bias"] = self.wm_bias
         data["rl_bias"] = self.rl_bias
-        data["eta6_wm"] = self.eta6_wm
+        data["eta6_wm_p"] = self.eta6_wm_p
         data["beta"] = self.beta
         data["phi"] = self.phi
         data["stickiness"] = self.stickiness
