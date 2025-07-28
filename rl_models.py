@@ -80,6 +80,7 @@ class PRL:
 
         data = pd.DataFrame(data)
         data["alpha"] = self.alphas[1]
+        data["neg_alpha"] = self.alphas[0]
         data["bias"] = self.bias
         data["beta"] = self.beta
         data["phi"] = self.phi

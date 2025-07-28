@@ -201,7 +201,7 @@ def get_block_features(data):
   return Concatenate(axis=3)([reward[:, :, :, np.newaxis], action_onehot]) #stimuli_onehot
 
 
-def extract_features_blockless(data, input_list, onehot=False):
+def extract_features_blockless(data, input_list, onehot_coding_features=[]):
   from sklearn.preprocessing import OneHotEncoder
 
   agentids = data.agentid.unique()
@@ -217,7 +217,7 @@ def extract_features_blockless(data, input_list, onehot=False):
   n_agent = len(agentids)
   features = []
   for key in input_list:
-    if key == 'actions' and onehot:
+    if key in onehot_coding_features:
         # Reshape actions for one-hot encoding
         actions = data[key].to_numpy().astype(np.int64).reshape(-1, 1)
         # Fit and transform using OneHotEncoder
