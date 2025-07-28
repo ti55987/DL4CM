@@ -3,7 +3,7 @@ import random
 
 import scipy
 from scipy.optimize import minimize
-
+from utils.stats_utils import calculate_aic, calculate_bic
 
 BETA_MULTIPLIER = 20
 
@@ -28,9 +28,14 @@ def prl2_neg_log_likelihood(data, parameters):
     return -llh
 
 
-def rl2_sa_neg_log_likelihood(data, parameters):
-    alpha0, beta = parameters
-    param_dict = {"alpha": alpha0, "beta": beta, "stickiness": 0, "phi": 0, "bias": 1}
+def rl2_sa_neg_log_likelihood(data, param_dict):
+    param_dict = {
+        "alpha": param_dict["alpha"],
+        "beta": param_dict["beta"],
+        "stickiness": 0,
+        "phi": 0,
+        "bias": 1,
+    }
     return sa_neg_log_likelihood_v2(data, param_dict)
 
 
@@ -40,25 +45,13 @@ def wm3_sa_neg_log_likelihood(data, parameters):
     return sa_neg_log_likelihood_v2(data, param_dict)
 
 
-def rl3_sa_neg_log_likelihood(data, parameters):
-    alpha0, beta, sticky = parameters
+def rl4_sa_neg_log_likelihood(data, param_dict):
     param_dict = {
-        "alpha": alpha0,
-        "beta": beta,
-        "stickiness": sticky,
+        "alpha": param_dict["alpha"],
+        "beta": param_dict["beta"],
+        "stickiness": param_dict["stickiness"],
+        "neg_alpha": param_dict["neg_alpha"],
         "phi": 0,
-        "bias": 1,
-    }
-    return sa_neg_log_likelihood_v2(data, param_dict)
-
-
-def rl4_sa_neg_log_likelihood(data, parameters):
-    alpha0, beta, sticky, phi = parameters
-    param_dict = {
-        "alpha": alpha0,
-        "beta": beta,
-        "stickiness": sticky,
-        "phi": phi,
         "bias": 1,
     }
     return sa_neg_log_likelihood_v2(data, param_dict)
@@ -69,6 +62,7 @@ def sa_neg_log_likelihood_v2(data, param_dict):
     from rl_models import PRL
 
     alpha = param_dict["alpha"] if "alpha" in param_dict else 1
+    neg_alpha = param_dict["neg_alpha"] if "neg_alpha" in param_dict else alpha
     alpha_cond = {
         0: alpha,
         1: alpha,
@@ -91,6 +85,7 @@ def sa_neg_log_likelihood_v2(data, param_dict):
         condition = block_data.condition.iloc[0]
         agent.init_model(
             alpha=alpha_cond[condition],
+            neg_alpha=neg_alpha,
             stimuli=np.arange(num_stimuli),
             actions=np.arange(num_actions),
             mapping={},
@@ -115,7 +110,7 @@ def sa_mixture_neg_log_likelihood(data, param_dict):
 
     num_actions = len(data.actions.unique())
     agent = create_mixture_model(id=0, params_dist=param_dict, using_rl=False)
-    
+
     llh = 0
     for b in data.block_no.unique():
         block_data = data[data.block_no == b]
@@ -266,6 +261,11 @@ def beta_prior(alpha, beta, lower=0, upper=1):
     return BetaPrior(alpha, beta, lower, upper)
 
 
+def get_free_parameters(param_bounds_dict):
+    param_names = [k for k, v in param_bounds_dict.items() if v[0] != v[1]]
+    return param_names
+
+
 # Function to process a single agent ID
 def process_agent(
     aid,
@@ -285,7 +285,7 @@ def process_agent(
     def func(params_list, *args):
         # Convert params list back to dictionary for tracking/debugging
         params_dict = {name: value for name, value in zip(param_names, params_list)}
-        params_dict["r0"] = metadata['r0'] if 'r0' in metadata else 0
+        params_dict["r0"] = metadata["r0"] if "r0" in metadata else 0
         return likelihood_func(sub_data, params_dict)
 
     try:
@@ -301,11 +301,33 @@ def process_agent(
             options={"maxiter": max_iterations},
         )
 
-        print(f"Completed optimization for agent {aid}")
-        return aid, res.x
+        # Calculate fit metrics
+        llh = res.fun
+        n_data_points = len(sub_data)
+        n_params = len(get_free_parameters(param_bounds_dict))
+        # Calculate AIC and BIC
+        aic = calculate_aic(n_params, -llh)  # 2 * n_params + 2 * best_res.fun
+        bic = calculate_bic(n_data_points, n_params, -llh)
+
+        print(f"AIC for {aid}: {aic}")
+        print(f"BIC for {aid}: {bic}")
+        # Prepare result dictionary
+        result = {
+            "id": aid,
+            "data_model": metadata["data_model"],  # The model that generated this data
+            "fit_model": metadata[
+                "model_name"
+            ],  # The model settings used to fit the data
+            "llh": llh,
+            "aic": aic,
+            "bic": bic,
+            "params": res.x,
+            "param_names": sorted(list(param_bounds_dict.keys())),
+        }
+        return result
     except Exception as e:
         print(f"Error processing agent {aid}: {str(e)}")
-        return aid, None
+        return {"id": aid, "error": str(e)}
 
 
 def process_agent_map(
@@ -337,7 +359,7 @@ def process_agent_map(
         f = metadata["likelihood_func"]
         # Convert params list back to dictionary for tracking/debugging
         params_dict = {name: value for name, value in zip(param_names, params)}
-        params_dict["r0"] = metadata['r0'] if 'r0' in metadata else 0
+        params_dict["r0"] = metadata["r0"] if "r0" in metadata else 0
         return f(d, params_dict)
 
     # Define the uniform prior log probability function
