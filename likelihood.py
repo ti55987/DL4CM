@@ -39,6 +39,18 @@ def rl2_sa_neg_log_likelihood(data, param_dict):
     return sa_neg_log_likelihood_v2(data, param_dict)
 
 
+def rl3_sa_neg_log_likelihood(data, param_dict):
+    param_dict = {
+        "beta": param_dict["beta"],
+        "alpha0": param_dict["alpha0"],
+        "alpha1": param_dict["alpha1"],
+        "stickiness": 0,
+        "phi": 0,
+        "bias": 1,
+    }
+    return sa_neg_log_likelihood_v2(data, param_dict)
+
+
 def wm3_sa_neg_log_likelihood(data, parameters):
     beta, sticky, phi = parameters
     param_dict = {"alpha": 1, "beta": beta, "stickiness": sticky, "phi": phi, "bias": 1}
@@ -62,10 +74,11 @@ def sa_neg_log_likelihood_v2(data, param_dict):
     from rl_models import PRL
 
     alpha = param_dict["alpha"] if "alpha" in param_dict else 1
-    neg_alpha = param_dict["neg_alpha"] if "neg_alpha" in param_dict else alpha
+    alpha0 = param_dict["alpha0"] if "alpha0" in param_dict else alpha
+    alpha1 = param_dict["alpha1"] if "alpha1" in param_dict else alpha
     alpha_cond = {
-        0: alpha,
-        1: alpha,
+        0: alpha0,
+        1: alpha1,
     }
 
     num_actions = len(data.actions.unique())
@@ -83,6 +96,12 @@ def sa_neg_log_likelihood_v2(data, param_dict):
     for b in data.block_no.unique():
         block_data = data[data.block_no == b]
         condition = block_data.condition.iloc[0]
+
+        neg_alpha = (
+            param_dict["neg_alpha"]
+            if "neg_alpha" in param_dict
+            else alpha_cond[condition]
+        )
         agent.init_model(
             alpha=alpha_cond[condition],
             neg_alpha=neg_alpha,
@@ -314,10 +333,6 @@ def process_agent(
         # Prepare result dictionary
         result = {
             "id": aid,
-            "data_model": metadata["data_model"],  # The model that generated this data
-            "fit_model": metadata[
-                "model_name"
-            ],  # The model settings used to fit the data
             "llh": llh,
             "aic": aic,
             "bic": bic,

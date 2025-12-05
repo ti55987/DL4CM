@@ -236,14 +236,20 @@ def extract_features_blockless(data, input_list, onehot_coding_features=[]):
 
   return np.stack(features, axis=-1)
 
-def extract_features(data, input_list):
+def extract_features(data, input_list, block_col='block_no'):
   n_agent = len(data['agentid'].unique())
   n_trial = len(data['trials'].unique())
-  n_block = len(data['block_no'].unique())
+  
   features = []
-  for key in input_list:
-    f = data[key].to_numpy().astype(np.int64).reshape((n_agent, n_block, n_trial))
-    features.append(f)
+  if block_col in data.columns:
+    n_block = len(data[block_col].unique())
+    for key in input_list:
+      f = data[key].to_numpy().astype(np.int64).reshape((n_agent, n_block, n_trial))
+      features.append(f)
+  else:
+    for key in input_list:
+      f = data[key].to_numpy().astype(np.int64).reshape((n_agent, n_trial))
+      features.append(f)
   
   return np.stack(features, axis=-1)
 
@@ -383,3 +389,22 @@ def get_iter_acc_with_switches(train_df):
 
     return pd.DataFrame(iter_acc)
 
+def get_stimulus_iteration_array(data, key='stimulus'):
+    iteration_count = {}
+    iteration_array = []
+    for stim in data[key]:
+        if stim not in iteration_count:
+            iteration_count[stim] = 1
+        else:
+            iteration_count[stim] += 1
+
+        iteration_array.append(iteration_count[stim])
+
+    return iteration_array
+
+def get_stimulus_iteration(all_agent_data, key='stimulus'):
+  iteration_array = []
+  for _, a_data in all_agent_data.groupby('agentid'):
+    iteration_array.extend(get_stimulus_iteration_array(a_data, key))
+
+  return iteration_array
