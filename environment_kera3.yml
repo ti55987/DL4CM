@@ -1,4 +1,4 @@
-name: dl4rl
+name: dl4rl-k3
 channels:
   - defaults
   - conda-forge
