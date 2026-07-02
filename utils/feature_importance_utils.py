@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+
 def block_shuffle_1d(x, block_size, rng):
     """
     x: shape (T,)
@@ -19,15 +20,30 @@ def block_shuffle_1d(x, block_size, rng):
     x_shuf = blocks[perm].reshape(-1)[:T]
     return x_shuf
 
+
+def mse_ignore_nan(y_true, y_pred, mask=None):
+    y_true = np.asarray(y_true, dtype=np.float32)
+    y_pred = np.asarray(y_pred, dtype=np.float32)
+    valid = np.isfinite(y_true)
+
+    if mask is not None:
+        valid &= np.asarray(mask).astype(bool)
+    if not np.any(valid):
+        return np.nan  # or raise ValueError("No valid entries")
+    
+    diff = y_true[valid] - y_pred[valid]
+    return float(np.mean(diff**2))
+
+
 def permutation_importance_global_sequence(
     model,
-    X_val,                  # shape: (N, T, F)
-    y_val,                  # shape: (N, T) or model-compatible target
+    X_val,  # shape: (N, T, F)
+    y_val,  # shape: (N, T) or model-compatible target
     feature_names=None,
     n_repeats=5,
     batch_size=128,
-    sample_weight=None,     # optional mask/weights, shape usually (N, T)
-    shuffle_mode="sequence",# "sequence" or "per_timestep"
+    sample_weight=None,  # optional mask/weights, shape usually (N, T)
+    shuffle_mode="sequence",  # "sequence" or "per_timestep"
     random_state=42,
     block_size=32,
 ):
@@ -40,14 +56,17 @@ def permutation_importance_global_sequence(
 
     # 1) Baseline validation loss (trained model, no retraining)
     baseline = model.evaluate(
-        X_val, y_val,
+        X_val,
+        y_val,
         sample_weight=sample_weight,
         batch_size=batch_size,
         verbose=0,
-        return_dict=True
+        return_dict=True,
     )
     baseline_loss = baseline["loss"]
-
+    # y_pred_base = model.predict(X_val, batch_size=batch_size, verbose=0)
+    # baseline_loss = mse_ignore_nan(y_val, y_pred_base, sample_weight)    
+    print(f"Baseline loss: {baseline_loss}")
     n_features = X_val.shape[2]
     if feature_names is None:
         feature_names = [f"feature_{i}" for i in range(n_features)]
@@ -80,31 +99,36 @@ def permutation_importance_global_sequence(
                 # Shuffle blocks of timesteps within each sample for feature j
                 for n in range(X_val.shape[0]):
                     Xp[n, :, j] = block_shuffle_1d(
-                        X_val[n, :, j],
-                        block_size=block_size,   # tune this
-                        rng=rng
-                    )                    
+                        X_val[n, :, j], block_size=block_size, rng=rng  # tune this
+                    )
             else:
                 raise ValueError("shuffle_mode must be 'sequence' or 'per_timestep'")
 
             perm_eval = model.evaluate(
-                Xp, y_val,
+                Xp,
+                y_val,
                 sample_weight=sample_weight,
                 batch_size=batch_size,
                 verbose=0,
-                return_dict=True
+                return_dict=True,
             )
             perm_loss = perm_eval["loss"]
             print(f"Permutation loss: {perm_loss}")
             deltas.append(perm_loss - baseline_loss)  # degradation
 
-        results.append({
-            "feature": feature_names[j],
-            "importance_mean": float(np.mean(deltas)),
-            "importance_std": float(np.std(deltas)),
-            "baseline_loss": float(baseline_loss),
-            "permuted_loss_mean": float(baseline_loss + np.mean(deltas)),
-        })
+        results.append(
+            {
+                "feature": feature_names[j],
+                "importance_mean": float(np.mean(deltas)),
+                "importance_std": float(np.std(deltas)),
+                "baseline_loss": float(baseline_loss),
+                "permuted_loss_mean": float(baseline_loss + np.mean(deltas)),
+            }
+        )
 
-    ranking = pd.DataFrame(results).sort_values("importance_mean", ascending=False).reset_index(drop=True)
+    ranking = (
+        pd.DataFrame(results)
+        .sort_values("importance_mean", ascending=False)
+        .reset_index(drop=True)
+    )
     return ranking
