@@ -1,7 +1,15 @@
 import numpy as np
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error
 import pandas as pd
 import seaborn as sns
+
+def get_all_agents_rmse(y_true, y_pred, squared: bool=False):
+  all_mse = []
+  for a, pred in enumerate(y_pred):
+    mse = mean_squared_error(y_true[a], pred, squared=squared)
+    all_mse.append(mse)
+
+  return all_mse
 
 def get_model_frequency(recovered_params):
     aic_model_frequency = {'data_model': [], 'fit_model': [], 'frequency': [], 'type': []}

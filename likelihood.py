@@ -69,6 +69,50 @@ def rl4_sa_neg_log_likelihood(data, param_dict):
     return sa_neg_log_likelihood_v2(data, param_dict)
 
 
+def get_prl4_rpe(stimuli, actions, rewards, param_dict, num_actions=3, num_stimuli=6):
+    parameters = {
+        "alpha": param_dict["alpha"],
+        "beta": param_dict.get("beta", 2.5),
+        "stickiness": param_dict["stickiness"],
+        "phi": param_dict.get("phi", 0),
+        "bias": param_dict.get("bias", 0),
+    }
+    beta = parameters["beta"] * 10  # why do it here?
+    neg_alpha = param_dict.get("neg_alpha", parameters["alpha"])
+
+    q_values = {
+        s: {a: 1 / num_actions for a in range(num_actions)} for s in range(num_stimuli)
+    }  # equal value first
+    lr_list = [neg_alpha, parameters["alpha"]]
+    rpe_history, chosen_q_values = [], []
+    for s, a, r in zip(stimuli, actions, rewards):
+        # Forgetting - fix to case with different Q/W
+        for st, action_to_prob in q_values.items():
+            for ac in action_to_prob.keys():
+                # same thing as WM = WM + forget (1/n - WM)
+                q_values[st][ac] = (1.0 - parameters["phi"]) * q_values[st][
+                    ac
+                ] + parameters["phi"] * 1 / num_actions
+
+        rpe = r - q_values[s][a]
+        alpha = lr_list[r]
+        # print("s, a, r", s, a, r, q_values[s][a])
+        chosen_q_values.append(q_values[s][a])
+        rpe_history.append(rpe)
+
+        # Q updates
+        q_values[s][a] = q_values[s][a] + alpha * rpe
+        # action that's not selected (for counterfactual learning)
+        for x in list(np.arange(num_actions)):
+            if x == a:
+                continue
+
+            rpe_unchosen = (1 - r) - q_values[s][x]  # RPE for the unselected action
+            q_values[s][x] += alpha * rpe_unchosen
+
+    return rpe_history, chosen_q_values
+
+
 # 2PRL-SA likelihood
 def sa_neg_log_likelihood_v2(data, param_dict):
     from rl_models import PRL
@@ -92,10 +136,10 @@ def sa_neg_log_likelihood_v2(data, param_dict):
         bias=param_dict["bias"],
         eps=param_dict["eps"] if "eps" in param_dict else 0,
     )
+
     llh = 0
-    for b in data.block_no.unique():
-        block_data = data[data.block_no == b]
-        condition = block_data.condition.iloc[0]
+    for _, b_data in data.groupby("block_no"):
+        condition = b_data.condition.iloc[0]
 
         neg_alpha = (
             param_dict["neg_alpha"]
@@ -110,10 +154,13 @@ def sa_neg_log_likelihood_v2(data, param_dict):
             mapping={},
         )
         prev_a = -1
-        for s, a, r in zip(block_data.stimuli, block_data.actions, block_data.rewards):
-            llh += np.log(agent.get_policy(s, prev_a)[a])
-            prev_a = a
-            agent.update_values(s, a, r)
+        for _, row in b_data.iterrows():
+            ac = int(row.actions)
+            st = int(row.stimuli)
+            r = int(row.rewards)
+            llh += np.log(agent.get_policy(st, prev_a)[ac])
+            prev_a = ac
+            agent.update_values(st, ac, r)
 
     return -llh
 
@@ -285,64 +332,138 @@ def get_free_parameters(param_bounds_dict):
     return param_names
 
 
-# Function to process a single agent ID
-def process_agent(
-    aid,
-    data,
-    metadata,
-    param_bounds_dict,
-    max_iterations=30,
+def optimize_MLE(
+    data, param_bounds_dict, likelihood_func, n_tries=8, max_iterations=1000
 ):
-    """Process a single agent ID and return the optimization results."""
-    likelihood_func = metadata["likelihood_func"]
+    """
+    Optimizes model parameters using a dictionary for parameter bounds and values.
+
+    Args:
+        data: Dataset to fit the model to
+        param_bounds_dict: Dictionary of parameter names to (lower, upper) bound tuples
+        likelihood_func: Function that calculates negative log likelihood
+        adapative_init_reward: Whether to use adaptive initial reward
+        n_tries: Number of random initializations to try
+
+    Returns:
+        best_res: Best optimization result
+        best_history: History of likelihood values for best run
+        all_likelihoods: Final likelihood values for all runs
+    """
+    best_res, best_history, all_likelihoods = None, [], []
+    best_nll = np.inf
+
     # Get parameter names and bounds
     param_names = sorted(list(param_bounds_dict.keys()))
     bounds = [param_bounds_dict[param] for param in param_names]
-    sub_data = data[data.agentid == aid]
 
     # Create a wrapper function that unpacks dictionary to list for the likelihood function
     def func(params_list, *args):
         # Convert params list back to dictionary for tracking/debugging
         params_dict = {name: value for name, value in zip(param_names, params_list)}
-        params_dict["r0"] = metadata["r0"] if "r0" in metadata else 0
-        return likelihood_func(sub_data, params_dict)
+        return likelihood_func(data, params_dict)
 
-    try:
-        print(f"Starting optimization for agent {aid}...")
+    # Try multiple random initializations
+    for _ in range(n_tries):
+        # func = lambda x, *args: likelihood_func(data, x)
+
+        history = []
+
+        def callback(x):
+            history.append(func(x))
 
         init_params = [random.uniform(l, h) for l, h in bounds]
-        # Run optimization
         res = minimize(
             func,
             init_params,
             bounds=bounds,
             method="L-BFGS-B",
             options={"maxiter": max_iterations},
+            callback=callback,
+        )
+        # print(res)
+        all_likelihoods.append(res.fun)
+        if res.fun < best_nll:
+            best_nll = res.fun
+            best_res = res
+            best_history = history
+
+    print("best_res", best_res.success, best_res.fun)
+    return best_res, best_history, all_likelihoods
+
+
+def process_agent(
+    data_model,
+    fit_model,
+    agent_data,
+    param_bounds_dict,
+    likelihood_func,
+    n_tries=8,
+    max_iterations=1000,
+):
+    """
+    Process a single agent using a specific model setting.
+
+    Args:
+        data_model: The model name that generated this data
+        agent_data: The agent's data
+        param_bounds_dict: Dictionary containing parameter bounds for the model
+        model_name: The name of the model to use
+    Returns:
+        Dictionary containing the recovered parameters and fit metrics
+    """
+    results = []
+    agent_id = agent_data.agentid.unique()[0]
+    print("max_iterations", max_iterations, "n_tries", n_tries)
+    try:
+        print(f"Fitting agent {agent_id}")
+
+        # Check if we have data for this agent
+        if len(agent_data) == 0:
+            print(f"No data found for agent {agent_id}")
+            return []
+
+        # Optimize parameters
+        best_res, best_history, all_likelihoods = optimize_MLE(
+            agent_data,
+            param_bounds_dict,
+            likelihood_func,
+            max_iterations=max_iterations,
+            n_tries=n_tries,
         )
 
+        # Check optimization status
+        llh = best_res.fun
+        if not best_res.success:
+            print(f"Warning: Optimization failed for {agent_id}")
+            print(f"Message: {best_res.message}, llh: {llh}")
+
         # Calculate fit metrics
-        llh = res.fun
-        n_data_points = len(sub_data)
+        n_data_points = len(agent_data)
         n_params = len(get_free_parameters(param_bounds_dict))
         # Calculate AIC and BIC
         aic = calculate_aic(n_params, -llh)  # 2 * n_params + 2 * best_res.fun
         bic = calculate_bic(n_data_points, n_params, -llh)
-
-        print(f"AIC for {aid}: {aic}")
-        print(f"BIC for {aid}: {bic}")
         # Prepare result dictionary
         result = {
-            "id": aid,
+            "id": agent_id,
+            "data_model": data_model,  # The model that generated this data
+            "fit_model": fit_model,
             "llh": llh,
             "aic": aic,
             "bic": bic,
-            "params": res.x,
+            "history": best_history,
+            "all_likelihoods": all_likelihoods,
+            "params": best_res.x,
             "param_names": sorted(list(param_bounds_dict.keys())),
         }
-        return result
+
+        results.append(result)
+
     except Exception as e:
-        print(f"Error processing agent {aid}: {str(e)}")
-        return {"id": aid, "error": str(e)}
+        print(f"Error processing agent {agent_id}:{str(e)}")
+
+    return results
 
 
 def process_agent_map(
