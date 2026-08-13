@@ -127,6 +127,10 @@ def sa_neg_log_likelihood_v2(data, param_dict):
 
     num_actions = len(data.actions.unique())
     num_stimuli = len(data.stimuli.unique())
+    if num_actions != 3 or num_stimuli != 6:
+        print("num_actions", num_actions, "num_stimuli", num_stimuli)
+        return -np.inf
+    
     agent = PRL(
         beta=param_dict["beta"] * BETA_MULTIPLIER if "beta" in param_dict else 25,
         pval=1,
