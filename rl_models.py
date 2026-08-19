@@ -1,7 +1,6 @@
 from utils.simulate_utils import (
     choose_different_array,
     action_softmax,
-    generate_shuffled_list,
 )
 import pandas as pd
 import numpy as np
