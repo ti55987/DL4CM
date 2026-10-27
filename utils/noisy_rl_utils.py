@@ -213,6 +213,7 @@ def get_mi_bits(df):
     # Calculate in nats then convert to bits
     return mutual_info_score(a_t_minus_1, a_t) / np.log(2)
 
+
 def plot_mi_vs_params(sim_df, param, fig=None, ax=None):
     scaler = MinMaxScaler()
     if fig is None or ax is None:
@@ -230,39 +231,13 @@ def plot_mi_vs_params(sim_df, param, fig=None, ax=None):
         x=f"{param}_rescaled",
         y="mutual_info",
         scatter_kws={"s": 10},
-        #label=rf"$\{param}$" if param != "rep_bias" else r"$\xi$",
+        # label=rf"$\{param}$" if param != "rep_bias" else r"$\xi$",
         ax=ax,
     )
     ax.legend()
     ax.set_ylabel("Mutual information")
     ax.set_title(rf"$\{param}$" if param != "rep_bias" else r"$\xi$")
     return fig, ax, plot_df
-
-# def plot_mi_vs_params(sim_df, param_names, fig=None, ax=None):
-#     scaler = MinMaxScaler()
-#     if fig is None or ax is None:
-#         fig, ax = plt.subplots(figsize=(6, 4))
-#     for param in param_names:
-#         if sim_df[param].nunique() > 1:
-#             plot_df = (
-#                 sim_df.groupby(["subj_code", param])
-#                 .apply(get_mi_bits)
-#                 .reset_index()
-#                 .rename(columns={0: "mutual_info"})
-#             )
-#             plot_df[f"{param}_rescaled"] = scaler.fit_transform(plot_df[[param]])
-#             sns.regplot(
-#                 data=plot_df,
-#                 x=f"{param}_rescaled",
-#                 y="mutual_info",
-#                 scatter_kws={"s": 10},
-#                 label=rf"$\{param}$" if param != "rep_bias" else r"$\xi$",
-#                 ax=ax,
-#             )
-#     ax.legend()
-#     ax.set_ylabel("Mutual information")
-#     ax.set_xlabel("Rescaled parameter value")
-#     return fig, ax
 
 
 # Modified from twoq_value_2alpha.simulation.simulation
