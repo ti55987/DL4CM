@@ -115,7 +115,7 @@ def get_prl4_rpe(stimuli, actions, rewards, param_dict, num_actions=3, num_stimu
 
 # 2PRL-SA likelihood
 def sa_neg_log_likelihood_v2(data, param_dict):
-    from rl_models import PRL
+    from simulation.rl_models import PRL
 
     alpha = param_dict["alpha"] if "alpha" in param_dict else 1
     alpha0 = param_dict["alpha0"] if "alpha0" in param_dict else alpha
@@ -468,64 +468,6 @@ def process_agent_v2(
         print(f"Error processing agent {agent_id}:{str(e)}")
 
     return results
-
-def process_agent(
-    aid,
-    data,
-    metadata,
-    param_bounds_dict,
-    max_iterations=30,
-):
-    """Process a single agent ID and return the optimization results."""
-    likelihood_func = metadata["likelihood_func"]
-    # Get parameter names and bounds
-    param_names = sorted(list(param_bounds_dict.keys()))
-    bounds = [param_bounds_dict[param] for param in param_names]
-    sub_data = data[data.agentid == aid]
-
-    # Create a wrapper function that unpacks dictionary to list for the likelihood function
-    def func(params_list, *args):
-        # Convert params list back to dictionary for tracking/debugging
-        params_dict = {name: value for name, value in zip(param_names, params_list)}
-        params_dict["r0"] = metadata["r0"] if "r0" in metadata else 0
-        return likelihood_func(sub_data, params_dict)
-
-    try:
-        print(f"Starting optimization for agent {aid}...")
-
-        init_params = [random.uniform(l, h) for l, h in bounds]
-        # Run optimization
-        res = minimize(
-            func,
-            init_params,
-            bounds=bounds,
-            method="L-BFGS-B",
-            options={"maxiter": max_iterations},
-        )
-
-        # Calculate fit metrics
-        llh = res.fun
-        n_data_points = len(sub_data)
-        n_params = len(get_free_parameters(param_bounds_dict))
-        # Calculate AIC and BIC
-        aic = calculate_aic(n_params, -llh)  # 2 * n_params + 2 * best_res.fun
-        bic = calculate_bic(n_data_points, n_params, -llh)
-
-        print(f"AIC for {aid}: {aic}")
-        print(f"BIC for {aid}: {bic}")
-        # Prepare result dictionary
-        result = {
-            "id": aid,
-            "llh": llh,
-            "aic": aic,
-            "bic": bic,
-            "params": res.x,
-            "param_names": sorted(list(param_bounds_dict.keys())),
-        }
-        return result
-    except Exception as e:
-        print(f"Error processing agent {aid}: {str(e)}")
-        return {"id": aid, "error": str(e)}
 
 def process_agent_map(
     aid,
