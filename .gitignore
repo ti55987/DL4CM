@@ -4,7 +4,7 @@ __pycache__/
 *.csv
 *.pkl
 .ipynb_checkpoints/
-data/
+data/*
 results/
 figures/
 models/
@@ -12,3 +12,9 @@ archived/
 utils/README_files/
 README.html
 .vscode/
+!data/wm_6s3a/
+data/wm_6s3a/*
+!data/wm_6s3a/rand500_st11_500a_12b_78t_wm.csv
+!data/rlf_6s3a/
+data/rlf_6s3a/*
+!data/rlf_6s3a/rand500_st11_500a_12b_78t_rlf.csv
