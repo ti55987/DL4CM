@@ -24,6 +24,6 @@
 - benchmarks (Ti-Fen) ✅
   - mle
   - map
-- eval (Ti-Fen)
+- eval (Ti-Fen) ✅
   - benchmark vs SBI 
   - permutation tests
