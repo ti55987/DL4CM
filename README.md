@@ -21,7 +21,7 @@
     - parameter_estimation.ipynb
     - model_comparison.ipynb
     - lasenet.ipynb
-- benchmarks (Ti-Fen)
+- benchmarks (Ti-Fen) ✅
   - mle
   - map
 - eval (Ti-Fen)
