@@ -2,32 +2,8 @@ import random
 import numpy as np
 import pandas as pd
 from rl_models import PRL
-from mixture_models import create_mixture_model
 from utils.simulate_utils import generate_valid_mappings
-
-
-def get_last_correct_trial(df):
-    correct_trial_map = {}
-    last_correct_trial = []
-    for _, row in df.iterrows():
-        s = row.stimuli
-        if s in correct_trial_map:
-            last_correct_trial.append(correct_trial_map[s])
-        else:
-            last_correct_trial.append(None)
-
-        if row.rewards == 1:
-            correct_trial_map[s] = int(row.trials)
-
-    return last_correct_trial
-
-
-def get_last_stimuli_trial(df):
-    # Create a copy of the dataframe with trials and stimuli
-    temp_df = df[["trials", "stimuli"]].copy()
-    # Group by stimuli and shift trials to get previous trial number
-    temp_df["last_trial"] = temp_df.groupby("stimuli")["trials"].shift(1)
-    return temp_df["last_trial"].values
+from utils.data_utils import get_last_stimuli_trial
 
 
 def simulate_agent(
@@ -81,19 +57,13 @@ def simulate_agent(
         data = agent.simulate_block(
             num_trials=num_trials, stimuli=all_seq[block_no], min_switch=min_switch
         )
-        # data['last_stimuli_trial'] = get_last_stimuli_trial(data)
+   
         data["delay_since_last_stimuli"] = data["trials"] - pd.Series(
             get_last_stimuli_trial(data)
         )
         data["delay_since_last_stimuli"] = (
             data["delay_since_last_stimuli"].fillna(0).astype(int)
         )
-        # data["delay_since_last_correct"] = data["trials"] - pd.Series(
-        #     get_last_correct_trial(data)
-        # )
-        # data["delay_since_last_correct"] = (
-        #     data["delay_since_last_correct"].fillna(0).astype(int)
-        # )
         data["block_no"] = [block_no] * num_trials
         data["condition"] = [cond] * num_trials
         data["set_size"] = [num_stimuli] * num_trials
@@ -107,47 +77,3 @@ def simulate_agent(
     return pd.concat(agent_data_list)
 
 
-def simulate_mixture_agent(
-    a,
-    num_blocks,
-    conditions,
-    iter_per_stimuli,
-    num_actions,
-    all_seq,
-    using_rl=False,
-    params_dist={},
-):
-
-    agent = create_mixture_model(a, params_dist, using_rl)
-
-    agent_data_list = []
-
-    for block_no in range(num_blocks):
-        cond = conditions[block_no]
-        num_stimuli = len(np.unique(all_seq[block_no]))
-        mappings = generate_valid_mappings(num_stimuli, num_actions)
-        num_trials = num_stimuli * iter_per_stimuli
-
-        agent.init_model(
-            learning_rate=params_dist["alpha"],
-            stimuli=np.arange(num_stimuli),
-            actions=np.arange(num_actions),
-            mapping=mappings,
-        )
-        data = agent.simulate_block(
-            num_trials=num_trials, stimuli=all_seq[block_no], sz=num_stimuli
-        )
-        # data['last_stimuli_trial'] = get_last_stimuli_trial(data)
-        data["delay_since_last_stimuli"] = data["trials"] - pd.Series(
-            get_last_stimuli_trial(data)
-        )
-        data["delay_since_last_stimuli"] = (
-            data["delay_since_last_stimuli"].fillna(0).astype(int)
-        )
-
-        data["block_no"] = [block_no] * num_trials
-        data["condition"] = [cond] * num_trials
-        data["set_size"] = [num_stimuli] * num_trials
-        agent_data_list.append(data)
-
-    return pd.concat(agent_data_list)

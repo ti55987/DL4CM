@@ -118,8 +118,6 @@ class PRL:
         alpha = self.alphas[reward]
         # Q updates
         self.__Q[st][ac] = self.__Q[st][ac] + alpha * rpe
-        # if not self.enabled_counterfactual_learning:
-        #   return rpe, 0
 
         # action that's not selected (for counterfactual learning)
         for x in list(np.arange(self.num_actions)):
