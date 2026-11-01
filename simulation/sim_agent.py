@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import pandas as pd
-from rl_models import PRL
+from simulation.rl_models import PRL
 from utils.simulate_utils import generate_valid_mappings
 from utils.data_utils import get_last_stimuli_trial
 

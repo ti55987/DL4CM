@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt                                                 
 from scipy.stats import chisquare                                               # probability distributions
 import pandas as pd                                                             # dataframe management
 import os                                                                       # path management
-
+import random
 # note to Ti-Fen: that's just for exporting my generated sequences
 # definition of directories
 wdir = os.getcwd()                                                              # current working directory
@@ -140,6 +140,22 @@ def create_stim_sequence(reps, ns, show_plot=False):
             criterion = False
 
     return np.array(seq)-1
+
+def remap_sequence(seq, num_stimuli_list, remap):
+    if isinstance(seq, list):
+        return [remap_sequence(subseq, remap) for subseq in seq]
+    if isinstance(seq, np.ndarray):
+        # elementwise remap, preserves shape
+        remap = np.arange(num_stimuli_list[0])
+        random.shuffle(remap)
+        f = np.vectorize(lambda x: remap[int(x)], otypes=[seq.dtype])
+        return f(seq)
+    # scalar fallback
+    try:
+        return remap.get(int(seq), seq)
+    except Exception:
+        return remap.get(seq, seq)
+
 
 # # function application
 # for i in range(1,5):
