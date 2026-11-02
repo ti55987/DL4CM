@@ -17,13 +17,14 @@
       - noise_rl
     - model_comparison
       - rlf_wm
-  - colab (Ti-Fen)
-    - parameter_estimation.ipynb
-    - model_comparison.ipynb
-    - lasenet.ipynb
+
 - benchmarks (Ti-Fen) ✅
   - mle
   - map
 - eval (Ti-Fen) ✅
   - benchmark vs SBI 
-  - permutation tests
+  - permutation tests (added to workflow)
+
+- parameter_estimation_workflow.ipynb (Ti-Fen) ✅
+- model_comparison_workflow.ipynb (Ti-Fen) ✅
+- lasenet_workflow.ipynb (Ti-Fen) ✅
