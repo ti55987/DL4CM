@@ -2,9 +2,9 @@
 corrupted by noise proportional to the prediction error (epsilon), softmax choice with a repetition bias (rep_bias),
 and counterfactual learning of the unchosen option, on a two-armed bandit whose payoffs follow random walks.
 
-Simulator adapted from the paper's code, github.com/csmfindling/learning_variability. Experiment 3: 16 blocks of 56
-trials, complete feedback; blocks 5 to 8 replay the payoffs of blocks 1 to 4, and blocks 13 to 16 those of 9 to 12,
-as in the paper.
+Simulator adapted from the paper's code, github.com/csmfindling/learning_variability. Task of the paper's
+experiment 3: 16 blocks of 56 trials, complete feedback, every choice free; blocks 5 to 8 replay the payoffs of
+blocks 1 to 4, and blocks 13 to 16 those of 9 to 12, as in the paper.
 """
 from concurrent.futures import ProcessPoolExecutor
 
@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import beta as Beta
 
-N_TRIALS_PER_BLOCK = {0: 56, 1: 56, 2: 96, 3: 56}
-N_BLOCKS = {0: 16, 1: 8, 2: 8, 3: 16}
+N_TRIALS_PER_BLOCK = 56
+N_BLOCKS = 16
 
 
 def generate_noise_rl_parameters(n_agents, default_params={}):
@@ -64,203 +64,87 @@ def replay_order(n_blocks, group=4):
     )
 
 
-def task_setup(experiment, n_blocks, n_trials_per_block):
-    T = n_blocks * n_trials_per_block
-    # rewards: 2 rows (options), T columns
-    rewards = np.zeros((2, T))
-
-    if experiment == 2:
-        # counter-balance omegas for the first half: half get 1, half get 2
-        n_half = n_blocks // 2
-        omegas = np.random.permutation(np.repeat([1.0, 2.0], n_half // 2))
-        rewards[0] = np.tile(
-            np.hstack([random_walk(n_trials_per_block, omega=omegas[i]) for i in range(n_half)]), 2
-        )
-        rewards[1] = np.tile(
-            np.hstack([random_walk(n_trials_per_block, omega=omegas[i]) for i in range(n_half)]), 2
-        )
-    else:
-        # experiments 0, 1 & 3: a new pair of walks for each of the first n_blocks // 2 blocks, replayed in groups of four
-        seeds0 = [random_walk(n_trials_per_block) for _ in range(n_blocks // 2)]
-        seeds1 = [random_walk(n_trials_per_block) for _ in range(n_blocks // 2)]
-        order = replay_order(n_blocks)
-        rewards[0] = np.hstack([seeds0[i] for i in order])
-        rewards[1] = np.hstack([seeds1[i] for i in order])
-
-    # complete: 1 for full feedback, 0 for partial
-    if experiment in [1, 2]:
-        complete = []
-        for i in range(n_blocks // 2):
-            if np.random.rand() < 0.5:
-                complete.append(np.ones(n_trials_per_block))
-                complete.append(np.zeros(n_trials_per_block))
-            else:
-                complete.append(np.zeros(n_trials_per_block))
-                complete.append(np.ones(n_trials_per_block))
-        complete = np.hstack(complete)
-    elif experiment == 0:
-        complete = np.zeros(T)
-    else:
-        complete = np.ones(T)
-
-    # idx_blocks: 0 means normal learning, 1 resets the model
-    idx_blocks = np.tile([1] + [0] * (n_trials_per_block - 1), n_blocks)
-
-    # choices: 1 if the agent chooses, 0 if it's a forced action (25% of trials in experiment 1)
-    if experiment == 1:
-        p_forced = 0.25
-        n_forced_per_block = int(p_forced * n_trials_per_block)
-        n_free_per_block = int((1 - p_forced) * n_trials_per_block)
-        choices = np.hstack(
-            [
-                np.random.permutation([0] * n_forced_per_block + [1] * n_free_per_block)
-                for _ in range(n_blocks)
-            ]
-        )
-        idx_cued = np.where(choices == 0)[0]
-        forced_actions = np.zeros(T)
-        forced_actions[idx_cued] = np.hstack(
-            [
-                np.random.permutation([0] * (n_forced_per_block // 2) + [1] * (n_forced_per_block // 2))
-                for _ in range(n_blocks)
-            ]
-        )
-    else:
-        choices = np.ones(T)
-        forced_actions = np.zeros(T)
-
-    return rewards, complete, idx_blocks, choices, forced_actions
+def task_setup():
+    """Payoffs of the two options, shape (2, N_BLOCKS * N_TRIALS_PER_BLOCK): a new pair of random walks for each of
+    the first N_BLOCKS // 2 blocks, shown in the order of replay_order."""
+    seeds0 = [random_walk(N_TRIALS_PER_BLOCK) for _ in range(N_BLOCKS // 2)]
+    seeds1 = [random_walk(N_TRIALS_PER_BLOCK) for _ in range(N_BLOCKS // 2)]
+    order = replay_order(N_BLOCKS)
+    return np.vstack([np.hstack([seeds0[i] for i in order]), np.hstack([seeds1[i] for i in order])])
 
 
-def simulate_noisy_rl(
-    rewards,
-    complete,
-    idx_blocks,
-    choices,
-    forced_actions,
-    sample,
-    apply_rep_bias,
-    apply_weber,
-    apply_observational_noise,
-    apply_counterfactual_learn,
-):
-    T = len(choices)
+def simulate_noisy_rl(rewards, sample):
+    """Simulate one agent on the task.
+
+    rewards: payoffs of the two options, shape (2, T), from task_setup.
+    sample: [alpha_c, alpha_u, beta, epsilon, rep_bias].
+
+    On the first trial of a block both values reset to 0.5 and the choice is random. On every other trial:
+    1. The agent sees both payoffs of the previous trial (complete feedback).
+    2. Each value moves toward its payoff, with learning rate alpha_c for the option chosen on the previous trial and
+       alpha_u for the other one: mu = (1 - alpha) * Q + alpha * payoff.
+    3. Noise is added to each update, with a standard deviation proportional to the size of its prediction error:
+       Q = mu + epsilon * |payoff - Q| * N(0, 1).
+    4. The choice is a softmax on the two values with inverse temperature beta, plus a bias of rep_bias * beta
+       toward repeating the previous choice.
+
+    Returns the values Q (T, 2), the actions (T,), the payoffs seen on each trial (2, T; this trial's payoffs, which
+    the agent learns from on the next trial), and whether each action took the option of higher value (T,).
+    """
+    T = rewards.shape[1]
     noisy_trajectories = np.zeros([T, 2])
     actions_simul = np.zeros([T])
-    prev_act = -1
-    alpha_c = sample[0]
-    alpha_u = sample[1] if apply_counterfactual_learn else 0
-    beta_softmax = sample[2]
-    epsilon = sample[3]
-    rep_bias = sample[4] * beta_softmax if apply_rep_bias else 0
-    prev_rew = np.zeros(2)
-    observed_rewards = np.zeros(rewards.shape) - np.inf
+    alpha_c, alpha_u, beta_softmax, epsilon = sample[:4]
+    rep_bias = sample[4] * beta_softmax
+    observed_rewards = rewards.copy()
     greedy_choices = np.zeros(T)
 
     for t_idx in range(T):
-        if t_idx > 0:
-            if complete[t_idx - 1]:
-                prev_rew = rewards[:, t_idx - 1]
-            else:
-                prev_rew[int(actions_simul[t_idx - 1])] = rewards[int(actions_simul[t_idx - 1]), t_idx - 1]
-                prev_rew[1 - int(actions_simul[t_idx - 1])] = 0.5
-
-            observed_rewards[:, t_idx - 1] = prev_rew
-
-        if idx_blocks[t_idx] == 0:  # normal trial
-            if actions_simul[t_idx - 1] == 0:
-                mu0 = (1 - alpha_c) * noisy_trajectories[t_idx - 1, 0] + alpha_c * prev_rew[0]
-                mu1 = (1 - alpha_u) * noisy_trajectories[t_idx - 1, 1] + alpha_u * prev_rew[1]
-            else:
-                mu0 = (1 - alpha_u) * noisy_trajectories[t_idx - 1, 0] + alpha_u * prev_rew[0]
-                mu1 = (1 - alpha_c) * noisy_trajectories[t_idx - 1, 1] + alpha_c * prev_rew[1]
-
-            if apply_weber == 1:
-                noise_level0 = np.abs(prev_rew[0] - noisy_trajectories[t_idx - 1, 0]) * epsilon
-                noise_level1 = np.abs(prev_rew[1] - noisy_trajectories[t_idx - 1, 1]) * epsilon
-            else:
-                noise_level0 = epsilon
-                noise_level1 = epsilon
-
-            if apply_observational_noise == 0 and choices[t_idx - 1] == 0:
-                noise_level0 = 0
-                noise_level1 = 0
-
-            noisy_trajectories[t_idx, 0] = mu0 + noise_level0 * np.random.normal()
-            noisy_trajectories[t_idx, 1] = mu1 + noise_level1 * np.random.normal()
-
-            if choices[t_idx] == 1:
-                # probability to choose 1, clipped to avoid numerical issues
-                lgt = beta_softmax * (noisy_trajectories[t_idx, 0] - noisy_trajectories[t_idx, 1])
-                if apply_rep_bias != 0 and prev_act != -1:
-                    lgt -= np.sign(prev_act - 0.5) * rep_bias
-                proba_1 = 1.0 / (1.0 + np.exp(np.clip(lgt, -30, 30)))
-
-                actions_simul[t_idx] = 1 if np.random.rand() < proba_1 else 0
-                prev_act = actions_simul[t_idx]
-            else:
-                actions_simul[t_idx] = forced_actions[t_idx]
-
-            if actions_simul[t_idx] == np.argmax(noisy_trajectories[t_idx]):
-                greedy_choices[t_idx] = 1
-
-        else:  # block reset
+        if t_idx % N_TRIALS_PER_BLOCK == 0:  # first trial of a block
             noisy_trajectories[t_idx] = 0.5
-            prev_act = -1
+            actions_simul[t_idx] = 1 if np.random.rand() < 0.5 else 0
+            prev_act = actions_simul[t_idx]
+            continue
 
-            if choices[t_idx] == 1:
-                actions_simul[t_idx] = 1 if np.random.rand() < 0.5 else 0
-                prev_act = actions_simul[t_idx]
-            else:
-                actions_simul[t_idx] = forced_actions[t_idx]
-
-    if t_idx > 0:
-        if complete[t_idx]:
-            prev_rew = rewards[:, t_idx]
+        prev_rew = rewards[:, t_idx - 1]
+        if actions_simul[t_idx - 1] == 0:
+            mu0 = (1 - alpha_c) * noisy_trajectories[t_idx - 1, 0] + alpha_c * prev_rew[0]
+            mu1 = (1 - alpha_u) * noisy_trajectories[t_idx - 1, 1] + alpha_u * prev_rew[1]
         else:
-            prev_rew[int(actions_simul[t_idx])] = rewards[int(actions_simul[t_idx]), t_idx]
-            prev_rew[1 - int(actions_simul[t_idx])] = 0.5
+            mu0 = (1 - alpha_u) * noisy_trajectories[t_idx - 1, 0] + alpha_u * prev_rew[0]
+            mu1 = (1 - alpha_c) * noisy_trajectories[t_idx - 1, 1] + alpha_c * prev_rew[1]
 
-        observed_rewards[:, t_idx] = prev_rew
+        noise_level0 = np.abs(prev_rew[0] - noisy_trajectories[t_idx - 1, 0]) * epsilon
+        noise_level1 = np.abs(prev_rew[1] - noisy_trajectories[t_idx - 1, 1]) * epsilon
+        noisy_trajectories[t_idx, 0] = mu0 + noise_level0 * np.random.normal()
+        noisy_trajectories[t_idx, 1] = mu1 + noise_level1 * np.random.normal()
+
+        # probability to choose 1, clipped to avoid numerical issues
+        lgt = beta_softmax * (noisy_trajectories[t_idx, 0] - noisy_trajectories[t_idx, 1])
+        lgt -= np.sign(prev_act - 0.5) * rep_bias
+        proba_1 = 1.0 / (1.0 + np.exp(np.clip(lgt, -30, 30)))
+
+        actions_simul[t_idx] = 1 if np.random.rand() < proba_1 else 0
+        prev_act = actions_simul[t_idx]
+
+        if actions_simul[t_idx] == np.argmax(noisy_trajectories[t_idx]):
+            greedy_choices[t_idx] = 1
 
     return noisy_trajectories, actions_simul, observed_rewards, greedy_choices
 
 
-def simulate_agent(
-    a,
-    params_dist,
-    experiment=3,
-    apply_rep_bias=1,
-    apply_weber=1,
-    apply_observational_noise=1,
-    apply_counterfactual_learn=1,
-):
-    n_blocks, n_trials_per_block = N_BLOCKS[experiment], N_TRIALS_PER_BLOCK[experiment]
-    rewards, complete, idx_blocks, choices, forced_actions = task_setup(experiment, n_blocks, n_trials_per_block)
-
+def simulate_noisy_rl_agent(a, params_dist):
+    rewards = task_setup()
     sample = [params_dist[p] for p in ["alpha_c", "alpha_u", "beta", "epsilon", "rep_bias"]]
-    trajectories, actions, obs_rewards, greedy_choices = simulate_noisy_rl(
-        rewards,
-        complete,
-        idx_blocks,
-        choices,
-        forced_actions,
-        sample,
-        apply_rep_bias,
-        apply_weber,
-        apply_observational_noise,
-        apply_counterfactual_learn,
-    )
+    trajectories, actions, obs_rewards, greedy_choices = simulate_noisy_rl(rewards, sample)
 
     return pd.DataFrame(
         {
             "subj_code": a,
-            "trial": np.tile(np.arange(n_trials_per_block), n_blocks),
-            "block": np.repeat(np.arange(n_blocks), n_trials_per_block),
+            "trial": np.tile(np.arange(N_TRIALS_PER_BLOCK), N_BLOCKS),
+            "block": np.repeat(np.arange(N_BLOCKS), N_TRIALS_PER_BLOCK),
             "reward0": rewards[0],
             "reward1": rewards[1],
-            "feedback_type": complete,
-            "free_choice": choices,
             "action": actions,
             "greedy_choice": greedy_choices,
             "obs_reward0": obs_rewards[0],
@@ -268,15 +152,15 @@ def simulate_agent(
             "q_value0": trajectories[:, 0],
             "q_value1": trajectories[:, 1],
             "alpha_c": sample[0],
-            "alpha_u": sample[1] if apply_counterfactual_learn else 0,
+            "alpha_u": sample[1],
             "beta": sample[2],
             "epsilon": sample[3],
-            "rep_bias": sample[4] if apply_rep_bias else 0,
+            "rep_bias": sample[4],
         }
     )
 
 
-def simulate_agents(parameters_dist, experiment=3, max_workers=1):
+def simulate_noisy_rl_agents(parameters_dist, max_workers=1):
     """One row per trial for every agent in `parameters_dist` (from generate_noise_rl_parameters).
 
     max_workers is 1 by default. All random draws, the payoff walks included, come from numpy's global random
@@ -285,11 +169,9 @@ def simulate_agents(parameters_dist, experiment=3, max_workers=1):
     """
     if max_workers > 1 and len(parameters_dist) > 1:
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            agent_dfs = list(
-                executor.map(simulate_agent, range(len(parameters_dist)), parameters_dist, [experiment] * len(parameters_dist))
-            )
+            agent_dfs = list(executor.map(simulate_noisy_rl_agent, range(len(parameters_dist)), parameters_dist))
     else:
-        agent_dfs = [simulate_agent(a, p, experiment) for a, p in enumerate(parameters_dist)]
+        agent_dfs = [simulate_noisy_rl_agent(a, p) for a, p in enumerate(parameters_dist)]
 
     sim_df = pd.concat(agent_dfs, axis=0, ignore_index=True)
     sim_df = sim_df.sort_values(["subj_code", "block", "trial"]).reset_index(drop=True)
