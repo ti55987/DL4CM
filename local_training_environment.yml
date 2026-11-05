@@ -1,0 +1,25 @@
+name: dl4cm-local
+channels:
+  - conda-forge
+dependencies:
+  # the versions our parameter estimation and model comparison results were trained with
+  - python=3.10
+  - numpy=2.1.3
+  - pandas=2.3.3
+  - scipy=1.15.2  # conda-forge build (our runs had 1.15.3 from pip, whose macOS wheel does not load on the latest macOS)
+  - setuptools<81  # hyperopt imports pkg_resources
+  - pip
+  - pip:
+      - tensorflow[and-cuda]==2.19.1; sys_platform == "linux"  # with the CUDA libraries for the GPU
+      - tensorflow==2.19.1; sys_platform == "darwin"  # macOS has no CUDA build; runs on the CPU
+      - keras==3.12.4
+      - scikit-learn==1.7.2
+      # hyperparameter search
+      - keras-tuner==1.4.8
+      - keras-hypetune==0.2.1
+      - hyperopt==0.2.5  # the version keras-hypetune runs with
+      - matplotlib==3.10.9
+      - seaborn==0.13.2
+      - tqdm
+      - jupyterlab
+      - papermill==2.7.0  # runs the training notebook for each feature set and budget
