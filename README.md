@@ -38,11 +38,7 @@ All contributions welcome! All content in this repository is licensed under the 
 
 ## TODO
 
-- simulation
-  - rlf.py (Ti-Fen) ✅
-  - wm.py (Ti-Fen) ✅
-  - noise_rl.py (Nathan)
-  - simulation.ipynb (Ti-Fen) ✅
+- simulation ✅
 - utils (Both)
 - enviornment_kera3.yml (Both)
 - training
