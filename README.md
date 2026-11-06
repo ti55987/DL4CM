@@ -16,11 +16,11 @@ conda activate dl4rl-k3
 
 ## Getting Started
 
-To go through the workflow of neural SBI, check out the following notebooks for each use case:
+To walk through the neural SBI workflow, check out the following notebooks for your use case:
 - Model parameter estimation: `parameter_estimation_workflow.ipynb`
 - Model comparison: `model_identification_workflow.ipynb`
 - Trial-varying latent variable inference (LaseNet): `lasenet_workflow.ipynb`
-  - To understand different usage of LaseNet [(Pan et al 2025)](https://link.springer.com/article/10.3758/s13428-025-02794-0), please visit this [repo](https://github.com/ti55987/lasenet/tree/master)
+  - For other uses of LaseNet [(Pan et al 2025)](https://link.springer.com/article/10.3758/s13428-025-02794-0), please visit this [repo](https://github.com/ti55987/lasenet/tree/master)
 
 ## Code structure
 - `simulation`: code for simulating the models and tasks in the tutorial (i.e., RLF, WM, and Noisy RL models).
