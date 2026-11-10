@@ -102,6 +102,7 @@ def get_model_for_model_identification(params):
         params["dropout"],
         params["dropout1"],
         params["dropout2"],
+        output_activation="softmax",
     )
     optimizer = Adam(learning_rate=params["learning_rate"])
     model.compile(
