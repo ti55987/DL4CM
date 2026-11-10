@@ -1,0 +1,5 @@
+configuration,units,dropout,dropout1,dropout2,learning_rate,batch_size,source
+1k,96,0.184875,0.0112605,0.0102861,0.00161536,256,trial 8 of search.py; the configuration of pretrained/rlf_wm_27000a_B256_U96_D0.185_D0.0112_D0.01_0.0016_model.keras
+9k,96,0.233018,0.0584251,0.0128466,0.00485046,128,trial 5 of search.py; best in the 2026-08-24 search at 9000 agents per model; also used at 3000
+9k_runner_up,512,0.218424,0.0437154,0.0111626,0.00209837,256,trial 1 of search.py; runner-up in the 2026-08-24 search at 9000 agents per model
+27k,512,0.170676,0.0997576,0.0280176,0.00127997,128,trial 10 of search.py; best in the 2026-08-24 search at 27000 agents per model
