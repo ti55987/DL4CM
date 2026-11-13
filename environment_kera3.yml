@@ -18,15 +18,10 @@ dependencies:
   - pip>=24.2
   - pip:
       # Keras 3 stack
-      - tensorflow==2.20.0
+      - tensorflow[and-cuda]==2.20.0; sys_platform == "linux"  # with the CUDA libraries TensorFlow needs for the GPU
+      - tensorflow==2.20.0; sys_platform != "linux"  # macOS and Windows: CPU only
       - keras==3.13.2
       # hyperparameter search
       - keras-tuner==1.4.8
       - keras-hypetune==0.2.1
       - hyperopt==0.2.5  # the version keras-hypetune runs with      
-      - statannotations==0.5.0
-      - torchvision 
-      - jupyter_contrib_nbextensions
-      - sacrebleu
-      - timeout_decorator  
-      - papermill==2.7.0  # runs the training notebook for each feature set and budget      

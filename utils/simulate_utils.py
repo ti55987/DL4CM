@@ -1,7 +1,6 @@
 import random
 import numpy as np
 import itertools
-import statsmodels.api as sm
 import scipy.stats as stats
 
 def generate_shuffled_list(size, numbers):
