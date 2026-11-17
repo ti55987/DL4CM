@@ -1,7 +1,7 @@
-"""Noisy RL parameter estimation (Table B2): train and test the GRU on all 72 runs of the appendix.
+"""Noisy RL parameter estimation (Table B1): train and test the GRU on all 72 runs of the appendix.
 
 A run is a training budget (3,000 or 9,000 agents), a feature set (FEATURE_SETS), an init seed and a configuration
-(configurations.csv). runs.csv lists the 72 runs: the `default` configuration for the 18 models of Table B2 and the
+(configurations.csv). runs.csv lists the 72 runs: the `default` configuration for the 18 models of Table B1 and the
 same 18 at 9,000 agents, and for the 36 tuned models the winner of the search of their budget and feature set.
 The script reads data/ and writes to results/parameter_estimation/noise_rl/.
 
@@ -59,7 +59,7 @@ FEATURE_LIST = [
     "reward0_bin",
     "reward1_bin",
 ]
-# The base set, then the other five features added one at a time (the rows of Table B2); each set keeps the order of
+# The base set, then the other five features added one at a time (the rows of Table B1); each set keeps the order of
 # FEATURE_LIST.
 BASE = ["actions", "prev_action", "chosen_vs_unchosen_reward_bin", "reward1_bin"]
 ADDED = ["reward0_bin", "chosen_reward_bin", "unchosen_reward_bin", "block_start", "optimal_choice"]
