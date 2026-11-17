@@ -1,5 +1,5 @@
 configuration,units,dropout,dropout1,dropout2,learning_rate,batch_size,search_seed,source
-default,96,0.065,0.1929,0.113,0.002,128,,the configuration of Table B2
+default,96,0.065,0.1929,0.113,0.002,128,,the configuration of Table B1
 3000a_base4,512,0.0546981093,0.0327053855,0.0207419064,0.0024942167,128,11,trial 3 of search.py
 3000a_five,512,0.1002395338,0.0691364865,0.1495541014,0.0006937332,128,15355,trial 5 of search.py
 3000a_six,128,0.0350822544,0.0791623437,0.1987498479,0.0019800369,128,79382,trial 7 of search.py

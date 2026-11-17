@@ -1,6 +1,6 @@
 # Parameter estimation: noisy RL
 
-Trains the GRU of `training/models.get_model_for_parameter_estimation` on the noisy RL agents of the appendix: the models of Table B2, the same models at 9,000 agents, and the tuned models of the 12 hyperparameter searches.
+Trains the GRU of `training/models.get_model_for_parameter_estimation` on the noisy RL agents of the appendix: the models of Table B1, the same models at 9,000 agents, and the tuned models of the 12 hyperparameter searches.
 
 | File                 | Contents                                |
 |----------------------|-----------------------------------------|
@@ -59,7 +59,7 @@ Both read `data/` and write to `results/parameter_estimation/noise_rl/`. `noise_
 ## Settings
 
 - Agents: experiment 3 of Findling et al. (2019), 16 blocks of 56 trials; `beta` 35, `alpha_c` and `alpha_u` U(0.05, 0.8), `epsilon` U(0.01, 1), `rep_bias` U(-0.25, 0.5).
-- Labels: `alpha_c`, `alpha_u`, `epsilon` and `xi` (the simulated `rep_bias`, κ in Table B2), standardized with the mean and standard deviation of the training agents.
+- Labels: `alpha_c`, `alpha_u`, `epsilon` and `xi` (the simulated `rep_bias`, κ in Table B1), standardized with the mean and standard deviation of the training agents.
 - Features: `base4` is `actions`, `prev_action`, `chosen_vs_unchosen_reward_bin` and `reward1_bin`; `five`, `six`, `seven`, `no_optimal` and `all9` add `reward0_bin`, `chosen_reward_bin`, `unchosen_reward_bin`, `block_start` and `optimal_choice` one at a time. Each payoff is cut into five equal bins on [0, 1], the chosen minus unchosen payoff on [-1, 1]; `prev_action` is -1 on an agent's first trial only; the rows are sorted by agent, block and trial.
 - Split: 10% of the training agents validate, drawn with the seed that simulated them (20260916 or 20260917); the same 500 test agents for every run.
 - Training: up to 600 epochs, early stopping on the validation loss with patience 50, best weights restored; init seeds 11, 15355 and 79382.
@@ -68,7 +68,7 @@ Both read `data/` and write to `results/parameter_estimation/noise_rl/`. `noise_
 
 ## Result
 
-RMSE on the 500 test agents, the mean of the three init seeds, `default` configuration. 3,000 agents (Table B2):
+RMSE on the 500 test agents, the mean of the three init seeds, `default` configuration. 3,000 agents (Table B1):
 
 | Feature set | alpha_c | alpha_u | epsilon | xi    | overall |
 |-------------|---------|---------|---------|-------|---------|
